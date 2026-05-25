@@ -20,6 +20,14 @@ import (
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store"
 )
 
+var (
+	serverRSAKeyGenerator   = rsa.GenerateKey
+	serverCreateCertificate = x509.CreateCertificate
+	serverRandInt           = rand.Int
+	serverTLSListen         = tls.Listen
+	serverNetListen         = net.Listen
+)
+
 func NewMux(s *store.Store) http.Handler {
 	mux := http.NewServeMux()
 	h := handler.New(s)
@@ -39,11 +47,11 @@ func Run(ctx context.Context, s *store.Store) error {
 	if err != nil {
 		return err
 	}
-	httpsListener, err := tls.Listen("tcp", httpsServer.Addr, &tls.Config{Certificates: []tls.Certificate{cert}})
+	httpsListener, err := serverTLSListen("tcp", httpsServer.Addr, &tls.Config{Certificates: []tls.Certificate{cert}})
 	if err != nil {
 		return err
 	}
-	httpListener, err := net.Listen("tcp", httpServer.Addr)
+	httpListener, err := serverNetListen("tcp", httpServer.Addr)
 	if err != nil {
 		_ = httpsListener.Close()
 		return err
@@ -98,12 +106,12 @@ func (r *statusRecorder) WriteHeader(statusCode int) {
 }
 
 func generateSelfSignedCertificate() (tls.Certificate, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := serverRSAKeyGenerator(rand.Reader, 2048)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
 	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialLimit)
+	serialNumber, err := serverRandInt(rand.Reader, serialLimit)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -116,7 +124,7 @@ func generateSelfSignedCertificate() (tls.Certificate, error) {
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{"localhost", "emulator"},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
+	der, err := serverCreateCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
 	if err != nil {
 		return tls.Certificate{}, err
 	}

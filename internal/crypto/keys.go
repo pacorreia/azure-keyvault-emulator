@@ -29,6 +29,12 @@ type KeyMaterial struct {
 	ECDSAPub *ecdsa.PublicKey
 }
 
+var (
+	rsaGenerateKey   = rsa.GenerateKey
+	ecdsaGenerateKey = ecdsa.GenerateKey
+	randRead         = crand.Read
+)
+
 func EncodeBase64URL(data []byte) string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
@@ -43,7 +49,7 @@ func GenerateKey(kty string, keySize int, crv, kid string, keyOps []string) (Key
 		if keySize == 0 {
 			keySize = 2048
 		}
-		priv, err := rsa.GenerateKey(crand.Reader, keySize)
+		priv, err := rsaGenerateKey(crand.Reader, keySize)
 		if err != nil {
 			return KeyMaterial{}, model.JSONWebKey{}, err
 		}
@@ -53,7 +59,7 @@ func GenerateKey(kty string, keySize int, crv, kid string, keyOps []string) (Key
 		if err != nil {
 			return KeyMaterial{}, model.JSONWebKey{}, err
 		}
-		priv, err := ecdsa.GenerateKey(curve, crand.Reader)
+		priv, err := ecdsaGenerateKey(curve, crand.Reader)
 		if err != nil {
 			return KeyMaterial{}, model.JSONWebKey{}, err
 		}
@@ -66,7 +72,7 @@ func GenerateKey(kty string, keySize int, crv, kid string, keyOps []string) (Key
 			return KeyMaterial{}, model.JSONWebKey{}, fmt.Errorf("invalid symmetric key size")
 		}
 		buf := make([]byte, keySize/8)
-		if _, err := crand.Read(buf); err != nil {
+		if _, err := randRead(buf); err != nil {
 			return KeyMaterial{}, model.JSONWebKey{}, err
 		}
 		return KeyMaterial{AES: buf}, SymmetricToJWK(kid, kty, keyOps, nil), nil
@@ -372,7 +378,7 @@ func rsaHash(alg string) (crypto.Hash, bool, error) {
 func encryptCBC(key []byte, alg string, plaintext, iv []byte) ([]byte, []byte, error) {
 	if len(iv) == 0 {
 		iv = make([]byte, aes.BlockSize)
-		if _, err := crand.Read(iv); err != nil {
+		if _, err := randRead(iv); err != nil {
 			return nil, nil, err
 		}
 	}

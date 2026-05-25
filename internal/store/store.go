@@ -17,6 +17,8 @@ const (
 	recoverableDays = 90
 )
 
+var storeRandRead = crand.Read
+
 type Error struct {
 	Status  int
 	Code    string
@@ -232,7 +234,7 @@ func nowUnix() int64 {
 
 func newVersion() string {
 	buf := make([]byte, 16)
-	if _, err := crand.Read(buf); err != nil {
+	if _, err := storeRandRead(buf); err != nil {
 		panic("failed to generate version id: " + err.Error())
 	}
 	return hex.EncodeToString(buf)

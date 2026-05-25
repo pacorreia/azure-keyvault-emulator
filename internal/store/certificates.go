@@ -1,19 +1,13 @@
 package store
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"math/big"
 	"net/http"
 	"sort"
-	"strings"
-	"time"
 
 	kvcrypto "github.com/pacorreia/azure-keyvault-emulator/internal/crypto"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/model"
@@ -34,7 +28,7 @@ func (s *Store) CreateCertificate(name string, req model.CreateCertificateReques
 	now := nowUnix()
 	version := newVersion()
 	attrs := buildAttributes(req.Attributes, now, now)
-	priv, der, err := createSelfSignedCertificate(name, policy)
+	priv, der, err := kvcrypto.GenerateSelfSignedCert(name, policy)
 	if err != nil {
 		return CertificateRecord{}, newError(http.StatusBadRequest, "InvalidOperation", err.Error())
 	}
@@ -79,7 +73,7 @@ func (s *Store) ImportCertificate(name string, req model.ImportCertificateReques
 		return CertificateRecord{}, newError(http.StatusBadRequest, "BadParameter", "Certificate value is required.")
 	}
 
-	cert, priv, pemValue, err := parseImportedCertificate(req.Value)
+	cert, priv, pemValue, err := kvcrypto.ParseImportedCertificate(req.Value)
 	if err != nil {
 		return CertificateRecord{}, newError(http.StatusBadRequest, "BadParameter", err.Error())
 	}
@@ -329,95 +323,6 @@ func (s *Store) RecoverDeletedCertificate(name string) (CertificateRecord, error
 	return cloneCertificateRecord(latestCertificate(deleted.entry).record), nil
 }
 
-func createSelfSignedCertificate(name string, policy *model.CertificatePolicy) (*rsa.PrivateKey, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-	subject := "CN=" + name
-	if policy != nil && policy.X509Props != nil {
-		if raw, ok := policy.X509Props["subject"].(string); ok && raw != "" {
-			subject = raw
-		}
-	}
-	notBefore := time.Now().Add(-5 * time.Minute)
-	notAfter := notBefore.Add(365 * 24 * time.Hour)
-	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serial, err := rand.Int(rand.Reader, serialLimit)
-	if err != nil {
-		return nil, nil, err
-	}
-	tpl := &x509.Certificate{
-		SerialNumber:          serial,
-		Subject:               parseSubject(subject),
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, nil, err
-	}
-	return priv, der, nil
-}
-
-func parseImportedCertificate(value string) (*x509.Certificate, *rsa.PrivateKey, []byte, error) {
-	data := []byte(value)
-	if !strings.Contains(value, "BEGIN ") {
-		decoded, err := base64.StdEncoding.DecodeString(value)
-		if err == nil {
-			data = decoded
-		}
-	}
-	var cert *x509.Certificate
-	var priv *rsa.PrivateKey
-	pemData := data
-	if block, rest := pem.Decode(data); block != nil {
-		pemData = data
-		current := block
-		remaining := rest
-		for current != nil {
-			switch current.Type {
-			case "CERTIFICATE":
-				parsed, err := x509.ParseCertificate(current.Bytes)
-				if err == nil && cert == nil {
-					cert = parsed
-				}
-			case "RSA PRIVATE KEY":
-				parsed, err := x509.ParsePKCS1PrivateKey(current.Bytes)
-				if err == nil && priv == nil {
-					priv = parsed
-				}
-			case "PRIVATE KEY":
-				parsed, err := x509.ParsePKCS8PrivateKey(current.Bytes)
-				if err == nil {
-					if key, ok := parsed.(*rsa.PrivateKey); ok && priv == nil {
-						priv = key
-					}
-				}
-			}
-			current, remaining = pem.Decode(remaining)
-		}
-	} else {
-		parsed, err := x509.ParseCertificate(data)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("invalid certificate value")
-		}
-		cert = parsed
-		pemData = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: data})
-	}
-	if cert == nil {
-		return nil, nil, nil, fmt.Errorf("invalid certificate value")
-	}
-	if priv != nil && !strings.Contains(string(pemData), "PRIVATE KEY") {
-		pemData = append(pemData, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})...)
-	}
-	return cert, priv, pemData, nil
-}
-
 func defaultCertificatePolicy(name string, policy *model.CertificatePolicy) *model.CertificatePolicy {
 	if policy == nil {
 		policy = &model.CertificatePolicy{}
@@ -474,16 +379,4 @@ func cloneCertificateRecord(in CertificateRecord) CertificateRecord {
 		Tags:       cloneTags(in.Tags),
 		Policy:     clonePolicy(in.Policy),
 	}
-}
-
-func parseSubject(subject string) pkix.Name {
-	name := pkix.Name{CommonName: subject}
-	parts := strings.Split(subject, ",")
-	for _, part := range parts {
-		piece := strings.TrimSpace(part)
-		if strings.HasPrefix(piece, "CN=") {
-			name.CommonName = strings.TrimPrefix(piece, "CN=")
-		}
-	}
-	return name
 }
