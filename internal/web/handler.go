@@ -268,8 +268,13 @@ func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := encryption.DeriveKey(req.Passphrase, salt)
-	if _, err := encryption.DecryptString(key, encVerify); err != nil {
+	plaintext, err := encryption.DecryptString(key, encVerify)
+	if err != nil {
 		h.writeError(w, http.StatusUnauthorized, "incorrect passphrase")
+		return
+	}
+	if plaintext != "verify" {
+		h.writeError(w, http.StatusInternalServerError, "invalid encryption verification token")
 		return
 	}
 
