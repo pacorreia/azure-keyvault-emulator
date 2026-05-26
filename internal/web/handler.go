@@ -178,16 +178,6 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.auth.Setup(req.Username, req.Password)
-	if err != nil {
-		if errors.Is(err, auth.ErrAlreadyInitialized) {
-			h.writeError(w, http.StatusConflict, "auth service already initialized")
-			return
-		}
-		h.writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	salt, err := encryption.GenerateSalt()
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
@@ -199,11 +189,30 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	createdUser, err := h.auth.Setup(req.Username, req.Password)
+	if err != nil {
+		if errors.Is(err, auth.ErrAlreadyInitialized) {
+			h.writeError(w, http.StatusConflict, "auth service already initialized")
+			return
+		}
+		h.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	rollback := func() {
+		if createdUser != nil {
+			_ = h.auth.DeleteUser(createdUser.ID)
+		}
+	}
+
 	if err := h.auth.SetConfig("enc_salt", hex.EncodeToString(salt)); err != nil {
+		rollback()
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := h.auth.SetConfig("enc_verify", verify); err != nil {
+		rollback()
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
