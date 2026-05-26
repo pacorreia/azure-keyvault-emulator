@@ -17,7 +17,7 @@ func newTestService(t *testing.T) *Service {
 	}
 	t.Cleanup(func() {
 		if err := svc.Close(); err != nil {
-			t.Fatal(err)
+			t.Errorf("close auth service: %v", err)
 		}
 	})
 	return svc
