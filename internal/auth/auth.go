@@ -260,8 +260,12 @@ func (s *Service) DeleteUser(id string) error {
 		return errors.New("user id is required")
 	}
 
-	if _, err := s.db.Exec(`DELETE FROM users WHERE id = ?`, id); err != nil {
+	result, err := s.db.Exec(`DELETE FROM users WHERE id = ?`, id)
+	if err != nil {
 		return err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return errors.New("user not found")
 	}
 
 	s.sessionsMu.Lock()
