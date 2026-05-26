@@ -68,6 +68,15 @@ func (es *encryptedStore) UpdateSecret(name, version string, req model.SecretUpd
 	return es.decryptRecord(record), nil
 }
 
+// DeleteSecret delegates to the underlying store and decrypts the returned record when a key is available.
+func (es *encryptedStore) DeleteSecret(name string) (store.DeletedSecretRecord, error) {
+	record, err := es.Storer.DeleteSecret(name)
+	if err != nil {
+		return record, err
+	}
+	record.SecretRecord = es.decryptRecord(record.SecretRecord)
+	return record, nil
+}
 func (es *encryptedStore) decryptRecord(record store.SecretRecord) store.SecretRecord {
 	key := es.getKey()
 	if key == nil || record.Value == "" {
