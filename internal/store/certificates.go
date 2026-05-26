@@ -61,7 +61,7 @@ func (s *Store) CreateCertificate(name string, req model.CreateCertificateReques
 		Tags:       cloneTags(req.Tags),
 	}
 	s.putKeyVersion(name, version, keyRecord, kvcrypto.KeyMaterial{RSA: priv, RSAPub: &priv.PublicKey})
-	s.putSecretVersion(name, version, managedSecret, "application/x-pkcs12", attrs, req.Tags)
+	s.putSecretVersion(name, version, managedSecret, "application/x-pem-file", attrs, req.Tags)
 	return cloneCertificateRecord(record), nil
 }
 
