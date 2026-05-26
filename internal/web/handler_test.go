@@ -22,6 +22,9 @@ func TestStatusEndpoint(t *testing.T) {
 	if status.Initialized {
 		t.Fatalf("expected uninitialized status")
 	}
+	if status.Locked {
+		t.Fatalf("expected not locked when encryption not configured")
+	}
 
 	performSetup(t, mux, h)
 
@@ -30,6 +33,66 @@ func TestStatusEndpoint(t *testing.T) {
 	decodeBody(t, rr, &status)
 	if !status.Initialized {
 		t.Fatalf("expected initialized status")
+	}
+	if status.Locked {
+		t.Fatalf("expected not locked immediately after setup (key is already in memory)")
+	}
+
+	// Simulate a server restart by clearing the in-memory key.
+	h.setEncryptionKey(nil)
+	rr = performRequest(mux, http.MethodGet, "/ui/api/status", nil, "")
+	assertStatus(t, rr, http.StatusOK)
+	decodeBody(t, rr, &status)
+	if !status.Initialized {
+		t.Fatalf("expected initialized status")
+	}
+	if !status.Locked {
+		t.Fatalf("expected locked after key is cleared from memory")
+	}
+}
+
+func TestUnlockEndpoint(t *testing.T) {
+	h, _, _, mux := newTestHandler(t)
+	performSetup(t, mux, h)
+
+	// Simulate a server restart by clearing the in-memory encryption key.
+	h.setEncryptionKey(nil)
+	if len(h.getEncryptionKey()) != 0 {
+		t.Fatal("expected key to be cleared")
+	}
+
+	// Wrong passphrase must be rejected.
+	rr := performRequest(mux, http.MethodPost, "/ui/api/unlock", map[string]string{
+		"passphrase": "wrong passphrase",
+	}, "")
+	assertStatus(t, rr, http.StatusUnauthorized)
+	if len(h.getEncryptionKey()) != 0 {
+		t.Fatal("key must not be set after wrong passphrase")
+	}
+
+	// Correct passphrase must succeed and restore the key.
+	rr = performRequest(mux, http.MethodPost, "/ui/api/unlock", map[string]string{
+		"passphrase": "correct horse battery staple",
+	}, "")
+	assertStatus(t, rr, http.StatusOK)
+	var resp map[string]bool
+	decodeBody(t, rr, &resp)
+	if !resp["ok"] {
+		t.Fatalf("expected ok response")
+	}
+	if len(h.getEncryptionKey()) != 32 {
+		t.Fatalf("expected 32-byte encryption key after unlock")
+	}
+
+	// Unlock when encryption is not configured must return an error.
+	h2, _, _, mux2 := newTestHandler(t)
+	// No setup performed on h2, so enc_salt is not in config.
+	rr = performRequest(mux2, http.MethodPost, "/ui/api/unlock", map[string]string{
+		"passphrase": "some passphrase",
+	}, "")
+	assertStatus(t, rr, http.StatusBadRequest)
+	if len(h2.getEncryptionKey()) != 0 {
+		t.Fatal("key must not be set when encryption is not configured")
 	}
 }
 

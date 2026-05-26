@@ -38,6 +38,11 @@ type Handler struct {
 
 type statusResponse struct {
 	Initialized bool `json:"initialized"`
+	Locked      bool `json:"locked"`
+}
+
+type unlockRequest struct {
+	Passphrase string `json:"passphrase"`
 }
 
 type setupRequest struct {
@@ -115,6 +120,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /ui/api/status", h.handleStatus)
 	mux.HandleFunc("POST /ui/api/setup", h.handleSetup)
+	mux.HandleFunc("POST /ui/api/unlock", h.handleUnlock)
 	mux.HandleFunc("POST /ui/api/login", h.handleLogin)
 	mux.HandleFunc("POST /ui/api/logout", h.handleLogout)
 	mux.HandleFunc("GET /ui/api/me", h.requireSession(h.handleMe))
@@ -166,7 +172,8 @@ func (h *Handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.writeJSON(w, http.StatusOK, statusResponse{Initialized: initialized})
+	locked := initialized && h.isLocked()
+	h.writeJSON(w, http.StatusOK, statusResponse{Initialized: initialized, Locked: locked})
 }
 
 func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +225,54 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.setEncryptionKey(key)
+	h.writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// isLocked reports whether encryption is configured (enc_salt is stored) but the
+// in-memory key has not yet been loaded. When the server restarts, callers must
+// POST /ui/api/unlock with the original passphrase to restore the key.
+func (h *Handler) isLocked() bool {
+	if _, ok := h.auth.GetConfig("enc_salt"); !ok {
+		return false // encryption not configured; server is not in a locked state
+	}
+	return len(h.getEncryptionKey()) == 0
+}
+
+func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) {
+	var req unlockRequest
+	if err := decodeJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Passphrase == "" {
+		h.writeError(w, http.StatusBadRequest, "passphrase is required")
+		return
+	}
+
+	saltHex, ok := h.auth.GetConfig("enc_salt")
+	if !ok {
+		h.writeError(w, http.StatusBadRequest, "encryption not configured")
+		return
+	}
+	salt, err := hex.DecodeString(saltHex)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "invalid encryption salt")
+		return
+	}
+
+	encVerify, ok := h.auth.GetConfig("enc_verify")
+	if !ok {
+		h.writeError(w, http.StatusInternalServerError, "encryption verification token missing")
+		return
+	}
+
+	key := encryption.DeriveKey(req.Passphrase, salt)
+	if _, err := encryption.DecryptString(key, encVerify); err != nil {
+		h.writeError(w, http.StatusUnauthorized, "incorrect passphrase")
+		return
+	}
+
 	h.setEncryptionKey(key)
 	h.writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -415,7 +470,6 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		SameSite: http.SameSiteLaxMode,
 	})
-}
 }
 
 func isSecureRequest(r *http.Request) bool {
