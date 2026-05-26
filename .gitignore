@@ -1,0 +1,4 @@
+azure-keyvault-emulator
+*.out
+*.cover
+coverage.txt
