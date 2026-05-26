@@ -178,15 +178,21 @@ func (s *Service) Login(username, password string) (*Session, error) {
 		return nil, err
 	}
 
+	now := time.Now().Unix()
 	session := &Session{
 		Token:     token,
 		UserID:    user.ID,
 		Username:  user.Username,
 		Role:      user.Role,
-		ExpiresAt: time.Now().Add(sessionTTL).Unix(),
+		ExpiresAt: now + int64(sessionTTL/time.Second),
 	}
 
 	s.sessionsMu.Lock()
+	for existingToken, existing := range s.sessions {
+		if now >= existing.ExpiresAt {
+			delete(s.sessions, existingToken)
+		}
+	}
 	s.sessions[token] = session
 	s.sessionsMu.Unlock()
 
