@@ -59,7 +59,7 @@ func (es *encryptedStore) RecoverDeletedSecret(name string) (store.SecretRecord,
 	return es.decryptRecord(record), nil
 }
 
-// UpdateSecret re-encrypts the value if provided in the update request.
+// UpdateSecret delegates to the underlying store and decrypts the returned record when a key is available.
 func (es *encryptedStore) UpdateSecret(name, version string, req model.SecretUpdateRequest) (store.SecretRecord, error) {
 	record, err := es.Storer.UpdateSecret(name, version, req)
 	if err != nil {
