@@ -28,6 +28,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer func() {
+		if err := s.Close(); err != nil {
+			log.Printf("store close: %v", err)
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

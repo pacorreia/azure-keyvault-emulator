@@ -19,6 +19,9 @@ const (
 var storeRandRead = crand.Read
 
 type Storer interface {
+	// Close releases any resources held by the store (e.g. database connections).
+	Close() error
+
 	SetSecret(name string, req model.SecretSetRequest) (SecretRecord, error)
 	GetSecret(name, version string) (SecretRecord, error)
 	ListSecrets(maxResults int, skipToken string) ([]SecretRecord, *string, error)
@@ -200,6 +203,9 @@ func New() *Store {
 		deletedCertificates: map[string]*deletedCertificateEntry{},
 	}
 }
+
+// Close is a no-op for the in-memory store; it satisfies the Storer interface.
+func (s *Store) Close() error { return nil }
 
 func cloneTags(tags map[string]string) map[string]string {
 	if tags == nil {

@@ -105,6 +105,11 @@ func NewSQLStore(db *sql.DB, flavor DBFlavor) (*SQLStore, error) {
 	return s, nil
 }
 
+// Close releases the underlying database connection pool.
+func (s *SQLStore) Close() error {
+	return s.db.Close()
+}
+
 // ===== Placeholder helpers =====
 
 func (f DBFlavor) ph(n int) string {
@@ -141,33 +146,44 @@ func (f DBFlavor) textType() string {
 	return "TEXT"
 }
 
+// keyType returns the SQL type to use for short identifier columns (name, version,
+// recovery_id) that appear in PRIMARY KEY or UNIQUE constraints. SQL Server does not
+// allow NVARCHAR(MAX) in indexes, so a bounded width is used instead.
+func (f DBFlavor) keyType() string {
+	if f == FlavorMSSQL {
+		return "NVARCHAR(450)"
+	}
+	return "TEXT"
+}
+
 // ===== Schema migrations =====
 
 func (s *SQLStore) migrate() error {
+	kt := s.flavor.keyType()
 	tt := s.flavor.textType()
 	stmts := []string{
 		s.createTable("kv_secrets", fmt.Sprintf(
-			`name %[1]s NOT NULL, version %[1]s NOT NULL, value %[1]s NOT NULL,
-			content_type %[1]s NOT NULL, attributes %[1]s NOT NULL, tags %[1]s NOT NULL,
-			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, tt)),
+			`name %[1]s NOT NULL, version %[1]s NOT NULL, value %[2]s NOT NULL,
+			content_type %[2]s NOT NULL, attributes %[2]s NOT NULL, tags %[2]s NOT NULL,
+			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, kt, tt)),
 		s.createTable("kv_deleted_secrets", fmt.Sprintf(
 			`name %[1]s NOT NULL PRIMARY KEY, recovery_id %[1]s NOT NULL,
-			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[1]s NOT NULL`, tt)),
+			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[2]s NOT NULL`, kt, tt)),
 		s.createTable("kv_keys", fmt.Sprintf(
-			`name %[1]s NOT NULL, version %[1]s NOT NULL, jwk %[1]s NOT NULL,
-			key_material %[1]s NOT NULL, attributes %[1]s NOT NULL, tags %[1]s NOT NULL,
-			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, tt)),
+			`name %[1]s NOT NULL, version %[1]s NOT NULL, jwk %[2]s NOT NULL,
+			key_material %[2]s NOT NULL, attributes %[2]s NOT NULL, tags %[2]s NOT NULL,
+			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, kt, tt)),
 		s.createTable("kv_deleted_keys", fmt.Sprintf(
 			`name %[1]s NOT NULL PRIMARY KEY, recovery_id %[1]s NOT NULL,
-			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[1]s NOT NULL`, tt)),
+			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[2]s NOT NULL`, kt, tt)),
 		s.createTable("kv_certificates", fmt.Sprintf(
-			`name %[1]s NOT NULL, version %[1]s NOT NULL, cer %[1]s NOT NULL,
-			kid %[1]s NOT NULL, sid %[1]s NOT NULL, pem_data %[1]s NOT NULL,
-			attributes %[1]s NOT NULL, tags %[1]s NOT NULL, policy %[1]s NULL,
-			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, tt)),
+			`name %[1]s NOT NULL, version %[1]s NOT NULL, cer %[2]s NOT NULL,
+			kid %[2]s NOT NULL, sid %[2]s NOT NULL, pem_data %[2]s NOT NULL,
+			attributes %[2]s NOT NULL, tags %[2]s NOT NULL, policy %[2]s NULL,
+			created_at BIGINT NOT NULL, PRIMARY KEY (name, version)`, kt, tt)),
 		s.createTable("kv_deleted_certificates", fmt.Sprintf(
 			`name %[1]s NOT NULL PRIMARY KEY, recovery_id %[1]s NOT NULL,
-			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[1]s NOT NULL`, tt)),
+			deleted_date BIGINT NOT NULL, scheduled_purge_date BIGINT NOT NULL, versions %[2]s NOT NULL`, kt, tt)),
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.Exec(stmt); err != nil {
