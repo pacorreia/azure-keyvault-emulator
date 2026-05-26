@@ -100,6 +100,13 @@ func New(a *auth.Service, s store.Storer) *Handler {
 	return h
 }
 
+// Store returns the store used by this handler. When a key is configured the
+// store transparently encrypts/decrypts secret values, so passing it to the
+// main KV API handler ensures encryption-at-rest applies to all write paths.
+func (h *Handler) Store() store.Storer {
+	return h.kvStore
+}
+
 func (h *Handler) Register(mux *http.ServeMux) {
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {

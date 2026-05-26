@@ -35,25 +35,33 @@ func main() {
 		}
 	}()
 
-	authSvc, err := openAuthService()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err := authSvc.Close(); err != nil {
-			log.Printf("auth close: %v", err)
-		}
-	}()
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := server.RunWithAuth(ctx, s, authSvc); err != nil {
-		log.Fatal(err)
+
+	enableUI := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_UI"))) != "false"
+	if enableUI {
+		authSvc, err := openAuthService()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			if err := authSvc.Close(); err != nil {
+				log.Printf("auth close: %v", err)
+			}
+		}()
+		if err := server.RunWithAuth(ctx, s, authSvc); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if err := server.Run(ctx, s); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
 // openAuthService opens the auth SQLite database. The path is taken from the
 // AUTH_DB environment variable, defaulting to "keyvault-auth.db".
+// This is only called when ENABLE_UI is not "false".
 func openAuthService() (*auth.Service, error) {
 	path := envOrDefault("AUTH_DB", "keyvault-auth.db")
 	svc, err := auth.Open(path)

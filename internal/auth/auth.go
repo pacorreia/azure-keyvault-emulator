@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -287,6 +288,9 @@ func (s *Service) GetConfig(key string) (string, bool) {
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM config WHERE key = ?`, key).Scan(&value)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("auth: GetConfig %q: %v", key, err)
+		}
 		return "", false
 	}
 	return value, true

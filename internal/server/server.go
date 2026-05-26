@@ -30,15 +30,21 @@ func NewMux(s store.Storer) http.Handler {
 }
 
 // NewMuxWithAuth creates the HTTP mux, optionally mounting the web UI.
-// When a is non-nil the setup/login/dashboard UI is available at /ui/.
+// When a is non-nil the setup/login/dashboard UI is available at /ui/, and
+// the main Key Vault API handler uses the same encrypted store so
+// encryption-at-rest applies to all write paths.
 func NewMuxWithAuth(s store.Storer, a *auth.Service) http.Handler {
 	mux := http.NewServeMux()
-	h := handler.New(s)
-	h.Register(mux)
+	kvStore := s
 	if a != nil {
 		webHandler := web.New(a, s)
 		webHandler.Register(mux)
+		// Use the web handler's encrypted store so the KV API handler also
+		// encrypts/decrypts secret values transparently.
+		kvStore = webHandler.Store()
 	}
+	h := handler.New(kvStore)
+	h.Register(mux)
 	return loggingMiddleware(mux)
 }
 
