@@ -96,7 +96,7 @@ type certificateResponse struct {
 
 func New(a *auth.Service, s store.Storer) *Handler {
 	h := &Handler{auth: a}
-	h.kvStore = newEncryptedStore(s, h.getEncryptionKey)
+	h.kvStore = newEncryptedStore(s, h.getEncryptionKey, h.isLocked)
 	return h
 }
 
@@ -240,6 +240,9 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 // in-memory key has not yet been loaded. When the server restarts, callers must
 // POST /ui/api/unlock with the original passphrase to restore the key.
 func (h *Handler) isLocked() bool {
+	if h.auth == nil {
+		return false
+	}
 	if _, ok, err := h.auth.GetConfig("enc_salt"); err != nil || !ok {
 		return false // encryption not configured; server is not in a locked state
 	}

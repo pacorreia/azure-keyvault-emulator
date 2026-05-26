@@ -390,7 +390,7 @@ func performRequest(mux *http.ServeMux, method, target string, body any, cookie 
 }
 
 func TestEncryptedStoreEncryptsSecretValues(t *testing.T) {
-	h, _, s, _ := newTestHandler(t)
+	h, _, s, mux := newTestHandler(t)
 
 	// Before setup, no key is set: values stored and retrieved as plaintext.
 	if _, err := h.kvStore.SetSecret("plain-secret", model.SecretSetRequest{Value: "plaintext"}); err != nil {
@@ -404,7 +404,18 @@ func TestEncryptedStoreEncryptsSecretValues(t *testing.T) {
 		t.Fatalf("expected plaintext stored without key, got %q", rawBefore.Value)
 	}
 
-	// Set an encryption key directly on the handler.
+	// After setup the encryption key is loaded. Simulate a restart by
+	// performing setup and then clearing the in-memory key, leaving the
+	// vault in a "locked" state (configured but key not yet loaded).
+	performSetup(t, mux, h)
+	h.setEncryptionKey(nil)
+
+	// While locked, SetSecret must return an error instead of storing plaintext.
+	if _, err := h.kvStore.SetSecret("locked-secret", model.SecretSetRequest{Value: "should-fail"}); err == nil {
+		t.Fatal("expected SetSecret to return an error when vault is locked")
+	}
+
+	// Set an encryption key directly on the handler to simulate unlocking.
 	h.setEncryptionKey(make([]byte, 32))
 
 	// After key is set: values must be stored encrypted.

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"errors"
+
 	"github.com/pacorreia/azure-keyvault-emulator/internal/encryption"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/model"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store"
@@ -11,17 +13,24 @@ import (
 // secret values are stored and returned as plaintext.
 type encryptedStore struct {
 	store.Storer
-	getKey func() []byte
+	getKey   func() []byte
+	isLocked func() bool
 }
 
-func newEncryptedStore(s store.Storer, getKey func() []byte) *encryptedStore {
-	return &encryptedStore{Storer: s, getKey: getKey}
+func newEncryptedStore(s store.Storer, getKey func() []byte, isLocked func() bool) *encryptedStore {
+	return &encryptedStore{Storer: s, getKey: getKey, isLocked: isLocked}
 }
 
 // SetSecret encrypts the secret value before delegating to the underlying store.
+// If encryption is configured but the vault is locked (key not yet loaded after
+// a restart), SetSecret returns an error to prevent plaintext writes.
 func (es *encryptedStore) SetSecret(name string, req model.SecretSetRequest) (store.SecretRecord, error) {
 	key := es.getKey()
-	if key != nil && req.Value != "" {
+	if key == nil {
+		if es.isLocked != nil && es.isLocked() {
+			return store.SecretRecord{}, errors.New("vault is locked: unlock before writing secrets")
+		}
+	} else if req.Value != "" {
 		encrypted, err := encryption.EncryptString(key, req.Value)
 		if err != nil {
 			return store.SecretRecord{}, err
@@ -77,6 +86,9 @@ func (es *encryptedStore) DeleteSecret(name string) (store.DeletedSecretRecord, 
 	record.SecretRecord = es.decryptRecord(record.SecretRecord)
 	return record, nil
 }
+// decryptRecord attempts to decrypt the secret value using the current encryption
+// key. If the key is not set or decryption fails (e.g. the value was stored
+// before encryption was configured), the original record is returned unchanged.
 func (es *encryptedStore) decryptRecord(record store.SecretRecord) store.SecretRecord {
 	key := es.getKey()
 	if key == nil || record.Value == "" {
