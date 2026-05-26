@@ -90,7 +90,9 @@ type certificateResponse struct {
 }
 
 func New(a *auth.Service, s store.Storer) *Handler {
-	return &Handler{auth: a, kvStore: s}
+	h := &Handler{auth: a}
+	h.kvStore = newEncryptedStore(s, h.getEncryptionKey)
+	return h
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -124,7 +126,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/api/certificates", h.requireSession(h.handleListCertificates))
 }
 
-func (h *Handler) SetEncryptionKey(key []byte) {
+func (h *Handler) setEncryptionKey(key []byte) {
 	h.encKeyMu.Lock()
 	defer h.encKeyMu.Unlock()
 	if len(key) == 0 {
@@ -134,7 +136,7 @@ func (h *Handler) SetEncryptionKey(key []byte) {
 	h.encKey = append([]byte(nil), key...)
 }
 
-func (h *Handler) GetEncryptionKey() []byte {
+func (h *Handler) getEncryptionKey() []byte {
 	h.encKeyMu.RLock()
 	defer h.encKeyMu.RUnlock()
 	if len(h.encKey) == 0 {
@@ -216,7 +218,7 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.SetEncryptionKey(key)
+	h.setEncryptionKey(key)
 	h.writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

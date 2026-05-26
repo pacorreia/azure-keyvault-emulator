@@ -48,7 +48,7 @@ func TestSetupSuccessAndConflict(t *testing.T) {
 	if !resp["ok"] {
 		t.Fatalf("expected ok response")
 	}
-	if len(h.GetEncryptionKey()) != 32 {
+	if len(h.getEncryptionKey()) != 32 {
 		t.Fatalf("expected 32-byte encryption key")
 	}
 	if _, ok := a.GetConfig("enc_salt"); !ok {
@@ -282,7 +282,7 @@ func performSetup(t *testing.T, mux *http.ServeMux, h *Handler) {
 		"passphrase": "correct horse battery staple",
 	}, "")
 	assertStatus(t, rr, http.StatusOK)
-	if h != nil && len(h.GetEncryptionKey()) != 32 {
+	if h != nil && len(h.getEncryptionKey()) != 32 {
 		t.Fatalf("expected setup to set encryption key")
 	}
 }
@@ -324,6 +324,46 @@ func performRequest(mux *http.ServeMux, method, target string, body any, cookie 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	return rr
+}
+
+func TestEncryptedStoreEncryptsSecretValues(t *testing.T) {
+	h, _, s, _ := newTestHandler(t)
+
+	// Before setup, no key is set: values stored and retrieved as plaintext.
+	if _, err := h.kvStore.SetSecret("plain-secret", model.SecretSetRequest{Value: "plaintext"}); err != nil {
+		t.Fatalf("set secret (no key): %v", err)
+	}
+	rawBefore, err := s.GetSecret("plain-secret", "")
+	if err != nil {
+		t.Fatalf("raw get (no key): %v", err)
+	}
+	if rawBefore.Value != "plaintext" {
+		t.Fatalf("expected plaintext stored without key, got %q", rawBefore.Value)
+	}
+
+	// Set an encryption key directly on the handler.
+	h.setEncryptionKey(make([]byte, 32))
+
+	// After key is set: values must be stored encrypted.
+	if _, err := h.kvStore.SetSecret("enc-secret", model.SecretSetRequest{Value: "my-secret-value"}); err != nil {
+		t.Fatalf("set secret (with key): %v", err)
+	}
+	rawAfter, err := s.GetSecret("enc-secret", "")
+	if err != nil {
+		t.Fatalf("raw get (with key): %v", err)
+	}
+	if rawAfter.Value == "my-secret-value" {
+		t.Fatal("expected secret value to be stored encrypted, but got plaintext")
+	}
+
+	// Retrieval via the encrypted store must return the decrypted value.
+	decrypted, err := h.kvStore.GetSecret("enc-secret", "")
+	if err != nil {
+		t.Fatalf("get secret (with key): %v", err)
+	}
+	if decrypted.Value != "my-secret-value" {
+		t.Fatalf("expected decrypted value %q, got %q", "my-secret-value", decrypted.Value)
+	}
 }
 
 func seedStore(t *testing.T, s *store.Store) {

@@ -4,18 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azure Key Vault Emulator — Initial Setup</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
   <link rel="stylesheet" href="/ui/static/style.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/ui/static/alpine.min.js"></script>
   <script defer src="/ui/static/app.js"></script>
 </head>
 <body class="auth-page">
   <main class="auth-shell" x-data="setupPage()" x-init="init()">
     <section class="card auth-card">
-      <div class="hero-badge"><span class="material-symbols-outlined">shield_lock</span></div>
+      <div class="hero-badge">🔐</div>
       <p class="eyebrow">Getting started</p>
       <h1>Azure Key Vault Emulator — Initial Setup</h1>
       <p class="subtitle">Create your admin account and set an encryption passphrase to protect secrets at rest.</p>
@@ -48,7 +44,7 @@
         </div>
 
         <div class="notice warning">
-          <span class="material-symbols-outlined">warning</span>
+          <span>⚠️</span>
           <span>Save your passphrase — it cannot be recovered</span>
         </div>
 
