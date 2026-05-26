@@ -232,7 +232,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    session.Token,
 		Path:     "/ui",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   true,
 		Expires:  time.Unix(session.ExpiresAt, 0),
 		SameSite: http.SameSiteLaxMode,
 	})
