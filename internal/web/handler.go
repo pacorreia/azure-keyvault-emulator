@@ -148,7 +148,7 @@ func (h *Handler) getEncryptionKey() []byte {
 func (h *Handler) servePage(w http.ResponseWriter, name string) {
 	data, err := staticFiles.ReadFile(path.Join("static", name))
 	if err != nil {
-		http.NotFound(w, nil)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	contentType := mime.TypeByExtension(path.Ext(name))
