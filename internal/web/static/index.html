@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Key Vault Emulator</title>
+  <link rel="stylesheet" href="/ui/static/style.css">
+</head>
+<body class="centered-page">
+  <main class="card splash-card">
+    <span class="splash-icon">🗝️</span>
+    <h1>Azure Key Vault Emulator</h1>
+    <p>Checking your environment…</p>
+    <div class="spinner" aria-label="Loading"></div>
+  </main>
+  <script>
+    (async () => {
+      try {
+        const response = await fetch('/ui/api/status', { credentials: 'include' });
+        const status = await response.json();
+        if (!status.initialized) {
+          window.location.replace('/ui/setup');
+          return;
+        }
+
+        const me = await fetch('/ui/api/me', { credentials: 'include' });
+        if (me.ok) {
+          window.location.replace('/ui/dashboard');
+          return;
+        }
+        window.location.replace('/ui/login');
+      } catch {
+        window.location.replace('/ui/login');
+      }
+    })();
+  </script>
+</body>
+</html>
