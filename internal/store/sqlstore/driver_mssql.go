@@ -1,5 +1,3 @@
-//go:build mssql
-
 package sqlstore
 
 import (

@@ -2,40 +2,33 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"log"
-	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	kvcrypto "github.com/pacorreia/azure-keyvault-emulator/internal/crypto"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/handler"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store"
 )
 
 var (
-	serverRSAKeyGenerator   = rsa.GenerateKey
-	serverCreateCertificate = x509.CreateCertificate
-	serverRandInt           = rand.Int
-	serverTLSListen         = tls.Listen
-	serverNetListen         = net.Listen
+	serverGenerateTLSCertificate = kvcrypto.GenerateTLSCertificate
+	serverTLSListen              = tls.Listen
+	serverNetListen              = net.Listen
 )
 
-func NewMux(s *store.Store) http.Handler {
+func NewMux(s store.Storer) http.Handler {
 	mux := http.NewServeMux()
 	h := handler.New(s)
 	h.Register(mux)
 	return loggingMiddleware(mux)
 }
 
-func Run(ctx context.Context, s *store.Store) error {
+func Run(ctx context.Context, s store.Storer) error {
 	httpPort := envOrDefault("PORT", "8080")
 	httpsPort := envOrDefault("HTTPS_PORT", "8443")
 	handler := NewMux(s)
@@ -106,29 +99,5 @@ func (r *statusRecorder) WriteHeader(statusCode int) {
 }
 
 func generateSelfSignedCertificate() (tls.Certificate, error) {
-	priv, err := serverRSAKeyGenerator(rand.Reader, 2048)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := serverRandInt(rand.Reader, serialLimit)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	tpl := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject:      pkix.Name{CommonName: "azure-keyvault-emulator"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{"localhost", "emulator"},
-	}
-	der, err := serverCreateCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	return tls.X509KeyPair(certPEM, keyPEM)
+	return serverGenerateTLSCertificate("azure-keyvault-emulator", []string{"localhost", "emulator"})
 }

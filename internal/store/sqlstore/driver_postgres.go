@@ -1,5 +1,3 @@
-//go:build postgres
-
 package sqlstore
 
 import (

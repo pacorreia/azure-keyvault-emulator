@@ -5,6 +5,18 @@ services:
     environment:
       PORT: 8080
       HTTPS_PORT: 8443
+      STORE_BACKEND: memory
+      STORE_DSN: ""
     ports:
       - "8080:8080"
       - "8443:8443"
+
+  # Uncomment for postgres backend:
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB: keyvault
+  #     POSTGRES_USER: keyvault
+  #     POSTGRES_PASSWORD: keyvault
+  #   ports:
+  #     - "5432:5432"

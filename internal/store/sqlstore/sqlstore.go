@@ -5,7 +5,6 @@ import (
 	crand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
@@ -13,7 +12,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2192,7 +2190,3 @@ func cloneCertRecord(in store.CertificateRecord) store.CertificateRecord {
 		Policy:     clonePolicy(in.Policy),
 	}
 }
-
-// Ensure unused imports are referenced.
-var _ = sort.Strings
-var _ = pkix.Name{}

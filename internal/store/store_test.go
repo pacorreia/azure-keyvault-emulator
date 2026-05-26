@@ -106,7 +106,7 @@ func TestStoreUtilities(t *testing.T) {
 	})
 
 	t.Run("cloneTags", func(t *testing.T) {
-		if tags := cloneTags(nil); len(tags) != 0 {
+		if tags := cloneTags(nil); tags != nil {
 			t.Fatalf("unexpected tags %#v", tags)
 		}
 		in := map[string]string{"a": "b"}
@@ -153,11 +153,7 @@ func TestStoreUtilities(t *testing.T) {
 		}
 	})
 
-	t.Run("sortAndLatestHelpers", func(t *testing.T) {
-		names := sortNames(map[string]struct{}{"b": {}, "a": {}})
-		if len(names) != 2 || names[0] != "a" || names[1] != "b" {
-			t.Fatalf("unexpected sorted names %v", names)
-		}
+	t.Run("latestHelpers", func(t *testing.T) {
 		if latestSecret(nil) != nil || latestKey(nil) != nil || latestCertificate(nil) != nil {
 			t.Fatal("expected nil latest helpers")
 		}

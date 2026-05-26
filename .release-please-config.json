@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "go",
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "changelog-sections": [
+        {"type": "feat", "section": "Features"},
+        {"type": "fix", "section": "Bug Fixes"},
+        {"type": "feat!", "section": "Breaking Changes"}
+      ]
+    }
+  },
+  "pull-request-title-pattern": "chore: release ${version}",
+  "commit-search-depth": 500
+}

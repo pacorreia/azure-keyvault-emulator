@@ -3,7 +3,6 @@ package store
 import (
 	crand "crypto/rand"
 	"encoding/hex"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +17,54 @@ const (
 )
 
 var storeRandRead = crand.Read
+
+type Storer interface {
+	SetSecret(name string, req model.SecretSetRequest) (SecretRecord, error)
+	GetSecret(name, version string) (SecretRecord, error)
+	ListSecrets(maxResults int, skipToken string) ([]SecretRecord, *string, error)
+	ListSecretVersions(name string, maxResults int, skipToken string) ([]SecretRecord, *string, error)
+	UpdateSecret(name, version string, req model.SecretUpdateRequest) (SecretRecord, error)
+	DeleteSecret(name string) (DeletedSecretRecord, error)
+	ListDeletedSecrets(maxResults int, skipToken string) ([]DeletedSecretRecord, *string, error)
+	GetDeletedSecret(name string) (DeletedSecretRecord, error)
+	PurgeDeletedSecret(name string) error
+	RecoverDeletedSecret(name string) (SecretRecord, error)
+	BackupSecret(name string) (string, error)
+	RestoreSecret(token string) (SecretRecord, error)
+
+	CreateKey(name string, req model.CreateKeyRequest) (KeyRecord, error)
+	ImportKey(name string, req model.ImportKeyRequest) (KeyRecord, error)
+	GetKey(name, version string) (KeyRecord, error)
+	ListKeys(maxResults int, skipToken string) ([]KeyRecord, *string, error)
+	ListKeyVersions(name string, maxResults int, skipToken string) ([]KeyRecord, *string, error)
+	UpdateKey(name, version string, req model.UpdateKeyRequest) (KeyRecord, error)
+	DeleteKey(name string) (DeletedKeyRecord, error)
+	ListDeletedKeys(maxResults int, skipToken string) ([]DeletedKeyRecord, *string, error)
+	GetDeletedKey(name string) (DeletedKeyRecord, error)
+	PurgeDeletedKey(name string) error
+	RecoverDeletedKey(name string) (KeyRecord, error)
+	Encrypt(name, version string, req model.EncryptRequest) (string, string, error)
+	Decrypt(name, version string, req model.EncryptRequest) (string, string, error)
+	Sign(name, version string, req model.SignRequest) (string, error)
+	Verify(name, version string, req model.VerifyRequest) (bool, error)
+	WrapKey(name, version string, req model.EncryptRequest) (string, error)
+	UnwrapKey(name, version string, req model.EncryptRequest) (string, error)
+
+	CreateCertificate(name string, req model.CreateCertificateRequest) (CertificateRecord, error)
+	ImportCertificate(name string, req model.ImportCertificateRequest) (CertificateRecord, error)
+	GetCertificate(name, version string) (CertificateRecord, error)
+	ListCertificates(maxResults int, skipToken string) ([]CertificateRecord, *string, error)
+	ListCertificateVersions(name string, maxResults int, skipToken string) ([]CertificateRecord, *string, error)
+	UpdateCertificate(name, version string, req model.UpdateCertificateRequest) (CertificateRecord, error)
+	GetCertificatePolicy(name string) (*model.CertificatePolicy, error)
+	UpdateCertificatePolicy(name string, policy *model.CertificatePolicy) (*model.CertificatePolicy, error)
+	GetPendingCertificateOperation(name string) (model.CertificateOperation, error)
+	DeleteCertificate(name string) (DeletedCertificateRecord, error)
+	ListDeletedCertificates(maxResults int, skipToken string) ([]DeletedCertificateRecord, *string, error)
+	GetDeletedCertificate(name string) (DeletedCertificateRecord, error)
+	PurgeDeletedCertificate(name string) error
+	RecoverDeletedCertificate(name string) (CertificateRecord, error)
+}
 
 type Error struct {
 	Status  int
@@ -156,7 +203,7 @@ func New() *Store {
 
 func cloneTags(tags map[string]string) map[string]string {
 	if tags == nil {
-		return map[string]string{}
+		return nil
 	}
 	out := make(map[string]string, len(tags))
 	for k, v := range tags {
@@ -272,15 +319,6 @@ func paginateNames[T any](items []T, skipToken string, maxResults int) ([]T, *st
 	}
 	next := strconv.Itoa(end)
 	return page, &next, nil
-}
-
-func sortNames(m map[string]struct{}) []string {
-	names := make([]string, 0, len(m))
-	for name := range m {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
 }
 
 func latestSecret(entry *secretEntry) *secretVersion {

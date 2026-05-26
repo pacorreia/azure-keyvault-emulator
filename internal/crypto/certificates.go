@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -54,6 +55,26 @@ func GenerateSelfSignedCert(name string, policy *model.CertificatePolicy) (*rsa.
 		return nil, nil, err
 	}
 	return priv, der, nil
+}
+
+func GenerateTLSCertificate(cn string, dnsNames []string) (tls.Certificate, error) {
+	policy := &model.CertificatePolicy{X509Props: map[string]any{"subject": "CN=" + cn}}
+	priv, der, err := GenerateSelfSignedCert(cn, policy)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	leaf.DNSNames = append([]string(nil), dnsNames...)
+	updatedDER, err := createCertificate(rand.Reader, leaf, leaf, &priv.PublicKey, priv)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: updatedDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	return tls.X509KeyPair(certPEM, keyPEM)
 }
 
 // ParseImportedCertificate parses PEM or DER encoded certificate data.

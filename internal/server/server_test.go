@@ -2,13 +2,9 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -48,32 +44,14 @@ func TestGenerateSelfSignedCertificate(t *testing.T) {
 		t.Fatalf("unexpected cert %+v", leaf)
 	}
 
-	oldRSA := serverRSAKeyGenerator
-	serverRSAKeyGenerator = func(io.Reader, int) (*rsa.PrivateKey, error) { return nil, errors.New("boom") }
-	if _, err := generateSelfSignedCertificate(); err == nil {
-		t.Fatal("expected rsa error")
-	}
-	serverRSAKeyGenerator = oldRSA
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverRSAKeyGenerator = func(io.Reader, int) (*rsa.PrivateKey, error) { return key, nil }
-	oldRandInt := serverRandInt
-	serverRandInt = func(io.Reader, *big.Int) (*big.Int, error) { return nil, errors.New("boom") }
-	if _, err := generateSelfSignedCertificate(); err == nil {
-		t.Fatal("expected rand.Int error")
-	}
-	serverRandInt = oldRandInt
-	oldCreate := serverCreateCertificate
-	serverCreateCertificate = func(io.Reader, *x509.Certificate, *x509.Certificate, any, any) ([]byte, error) {
-		return nil, errors.New("boom")
+	oldGenerate := serverGenerateTLSCertificate
+	defer func() { serverGenerateTLSCertificate = oldGenerate }()
+	serverGenerateTLSCertificate = func(string, []string) (tls.Certificate, error) {
+		return tls.Certificate{}, errors.New("boom")
 	}
 	if _, err := generateSelfSignedCertificate(); err == nil {
-		t.Fatal("expected create certificate error")
+		t.Fatal("expected generation error")
 	}
-	serverCreateCertificate = oldCreate
-	serverRSAKeyGenerator = oldRSA
 }
 
 func TestNewMux(t *testing.T) {
@@ -140,9 +118,9 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("certificate generation failure", func(t *testing.T) {
-		oldRSA := serverRSAKeyGenerator
-		serverRSAKeyGenerator = func(io.Reader, int) (*rsa.PrivateKey, error) { return nil, errors.New("boom") }
-		defer func() { serverRSAKeyGenerator = oldRSA }()
+		oldGenerate := serverGenerateTLSCertificate
+		serverGenerateTLSCertificate = func(string, []string) (tls.Certificate, error) { return tls.Certificate{}, errors.New("boom") }
+		defer func() { serverGenerateTLSCertificate = oldGenerate }()
 		t.Setenv("PORT", "0")
 		t.Setenv("HTTPS_PORT", "0")
 		if err := Run(context.Background(), store.New()); err == nil {

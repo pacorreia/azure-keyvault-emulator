@@ -113,6 +113,11 @@ func TestGeneralRoutesAndPagination(t *testing.T) {
 		t.Fatalf("unexpected body %s", string(body))
 	}
 
+	health := doJSON[map[string]string](t, ts, http.MethodGet, "/healthz", nil)
+	if health["status"] != "ok" {
+		t.Fatalf("unexpected health response %+v", health)
+	}
+
 	_ = doJSON[model.SecretBundle](t, ts, http.MethodPut, "/secrets/a?api-version=7.4", map[string]any{"value": "1"})
 	_ = doJSON[model.SecretBundle](t, ts, http.MethodPut, "/secrets/b?api-version=7.4", map[string]any{"value": "2"})
 	list := doJSONHeaders[model.ListResult[model.SecretItem]](t, ts, http.MethodGet, "/secrets?api-version=7.4&$maxresults=1", nil, map[string]string{"X-Forwarded-Proto": "https"})

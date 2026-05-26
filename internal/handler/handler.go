@@ -14,18 +14,23 @@ import (
 )
 
 type Handler struct {
-	store *store.Store
+	store store.Storer
 }
 
-func New(s *store.Store) *Handler {
+func New(s store.Storer) *Handler {
 	return &Handler{store: s}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /healthz", h.healthz)
 	h.registerSecretRoutes(mux)
 	h.registerKeyRoutes(mux)
 	h.registerCertificateRoutes(mux)
 	mux.HandleFunc("/", h.handleNotFound)
+}
+
+func (h *Handler) healthz(w http.ResponseWriter, _ *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) handleNotFound(w http.ResponseWriter, r *http.Request) {
