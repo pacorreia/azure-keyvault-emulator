@@ -38,10 +38,10 @@ func (h *Handler) handleNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) parseBody(r *http.Request, dst any) error {
-	defer r.Body.Close()
 	if r.Body == nil {
 		return fmt.Errorf("request body is required")
 	}
+	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		return err
 	}
