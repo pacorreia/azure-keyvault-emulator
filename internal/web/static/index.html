@@ -22,7 +22,9 @@
           window.location.replace('/ui/setup');
           return;
         }
-        if (document.cookie.includes('kv_session=')) {
+
+        const me = await fetch('/ui/api/me', { credentials: 'include' });
+        if (me.ok) {
           window.location.replace('/ui/dashboard');
           return;
         }
