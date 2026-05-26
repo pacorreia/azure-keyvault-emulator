@@ -399,7 +399,7 @@ func (h *Handler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/ui",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   true,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		SameSite: http.SameSiteLaxMode,
