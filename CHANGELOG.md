@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.2.1...v0.3.0) (2026-05-26)
+
+
+### Features
+
+* add web UI with Material Design, auth, RBAC, and encryption at rest ([9ec32c1](https://github.com/pacorreia/azure-keyvault-emulator/commit/9ec32c150eda0275b1caa22cf0c7339dac548f6b))
+
 ## [0.2.1](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.2.0...v0.2.1) (2026-05-26)
 
 
