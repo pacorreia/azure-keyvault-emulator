@@ -120,7 +120,7 @@ func (s *Store) ImportCertificate(name string, req model.ImportCertificateReques
 		}
 		s.putKeyVersion(name, version, keyRecord, material)
 	}
-	s.putSecretVersion(name, version, string(pemValue), "application/x-pkcs12", attrs, req.Tags)
+	s.putSecretVersion(name, version, string(pemValue), "application/x-pem-file", attrs, req.Tags)
 	return cloneCertificateRecord(record), nil
 }
 
