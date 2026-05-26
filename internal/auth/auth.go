@@ -320,6 +320,8 @@ func (s *Service) migrate() error {
 			role TEXT NOT NULL,
 			created_at INTEGER NOT NULL
 		)`,
+		// Enforce that only one admin user can exist, even under concurrent setup attempts.
+		`CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin ON users(role) WHERE role = 'admin'`,
 		`CREATE TABLE IF NOT EXISTS config (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
