@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.2.0...v0.2.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* merge release publish jobs into release-please workflow ([209a585](https://github.com/pacorreia/azure-keyvault-emulator/commit/209a585595e805c4417d7063dc44d077d3dc7b2e))
+* run release asset jobs within release-please workflow ([55df936](https://github.com/pacorreia/azure-keyvault-emulator/commit/55df9366739d37d52e8d6ce48fec4ae7102bc32a))
+
 ## [0.2.0](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.1.0...v0.2.0) (2026-05-26)
 
 
