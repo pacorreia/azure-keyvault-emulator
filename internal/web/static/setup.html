@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Key Vault Emulator — Initial Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/static/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/ui/static/app.js"></script>
+</head>
+<body class="auth-page">
+  <main class="auth-shell" x-data="setupPage()" x-init="init()">
+    <section class="card auth-card">
+      <div class="hero-badge"><span class="material-symbols-outlined">shield_lock</span></div>
+      <p class="eyebrow">Getting started</p>
+      <h1>Azure Key Vault Emulator — Initial Setup</h1>
+      <p class="subtitle">Create your admin account and set an encryption passphrase to protect secrets at rest.</p>
+
+      <form class="stack-lg" @submit.prevent="submit()">
+        <label class="field">
+          <span>Admin username</span>
+          <input type="text" x-model.trim="form.username" autocomplete="username" required>
+        </label>
+
+        <label class="field">
+          <span>Admin password</span>
+          <input type="password" x-model="form.password" autocomplete="new-password" required>
+        </label>
+
+        <label class="field">
+          <span>Confirm password</span>
+          <input type="password" x-model="form.confirmPassword" autocomplete="new-password" required>
+        </label>
+
+        <div class="field-group">
+          <label class="field field-grow">
+            <span>Encryption passphrase</span>
+            <input type="password" x-model="form.passphrase" autocomplete="new-password" required>
+          </label>
+          <div class="inline-actions">
+            <button class="btn-outlined" type="button" @click="generatePassphrase()">Generate</button>
+            <button class="btn-text" type="button" @click="copyPassphrase()">Copy</button>
+          </div>
+        </div>
+
+        <div class="notice warning">
+          <span class="material-symbols-outlined">warning</span>
+          <span>Save your passphrase — it cannot be recovered</span>
+        </div>
+
+        <template x-if="error">
+          <p class="inline-error" x-text="error"></p>
+        </template>
+
+        <button class="btn-filled" type="submit" :disabled="loading">
+          <span x-show="!loading">Create Admin Account</span>
+          <span x-show="loading">Creating…</span>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    function setupPage() {
+      return {
+        loading: false,
+        error: '',
+        form: {
+          username: '',
+          password: '',
+          confirmPassword: '',
+          passphrase: ''
+        },
+        async init() {
+          try {
+            const status = await kvApi.get('/ui/api/status');
+            if (status.initialized) {
+              window.location.replace('/ui/');
+            }
+          } catch {
+            this.error = 'Unable to reach the emulator.';
+          }
+        },
+        generatePassphrase() {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*_-+=';
+          const bytes = new Uint32Array(32);
+          crypto.getRandomValues(bytes);
+          this.form.passphrase = Array.from(bytes, (value) => chars[value % chars.length]).join('');
+        },
+        async copyPassphrase() {
+          if (!this.form.passphrase) {
+            this.generatePassphrase();
+          }
+          try {
+            await navigator.clipboard.writeText(this.form.passphrase);
+            showToast('Passphrase copied');
+          } catch {
+            showToast('Unable to copy passphrase', 'error');
+          }
+        },
+        async submit() {
+          this.error = '';
+          if (this.form.password !== this.form.confirmPassword) {
+            this.error = 'Passwords do not match.';
+            return;
+          }
+          this.loading = true;
+          try {
+            await kvApi.post('/ui/api/setup', {
+              username: this.form.username,
+              password: this.form.password,
+              passphrase: this.form.passphrase
+            });
+            showToast('Admin account created');
+            window.location.replace('/ui/login');
+          } catch (error) {
+            this.error = error.message;
+          } finally {
+            this.loading = false;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

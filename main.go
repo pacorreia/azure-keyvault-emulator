@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/pacorreia/azure-keyvault-emulator/internal/auth"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/server"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store/sqlstore"
@@ -34,11 +35,33 @@ func main() {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	if err := server.Run(ctx, s); err != nil {
+	authSvc, err := openAuthService()
+	if err != nil {
 		log.Fatal(err)
 	}
+	defer func() {
+		if err := authSvc.Close(); err != nil {
+			log.Printf("auth close: %v", err)
+		}
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := server.RunWithAuth(ctx, s, authSvc); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// openAuthService opens the auth SQLite database. The path is taken from the
+// AUTH_DB environment variable, defaulting to "keyvault-auth.db".
+func openAuthService() (*auth.Service, error) {
+	path := envOrDefault("AUTH_DB", "keyvault-auth.db")
+	svc, err := auth.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open auth db %q: %w", path, err)
+	}
+	log.Printf("auth service opened at %s", path)
+	return svc, nil
 }
 
 func openStore() (store.Storer, error) {

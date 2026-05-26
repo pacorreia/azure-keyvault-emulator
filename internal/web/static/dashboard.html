@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Key Vault Emulator Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/static/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/ui/static/app.js"></script>
+</head>
+<body x-data="dashboardPage()" x-init="init()">
+  <header class="app-bar">
+    <div class="app-bar-title">
+      <span class="material-symbols-outlined">key_vertical</span>
+      <span>Azure Key Vault Emulator</span>
+    </div>
+    <div class="app-bar-actions" x-show="user.username">
+      <span class="user-pill"><span class="material-symbols-outlined">account_circle</span><span x-text="user.username"></span></span>
+      <button class="btn-text" type="button" @click="logout()">Logout</button>
+    </div>
+  </header>
+
+  <main class="dashboard-shell" x-cloak>
+    <aside class="nav-sidebar">
+      <button type="button" :class="navClass('secrets')" @click="selectTab('secrets')">Secrets</button>
+      <button type="button" :class="navClass('keys')" @click="selectTab('keys')">Keys</button>
+      <button type="button" :class="navClass('certificates')" @click="selectTab('certificates')">Certificates</button>
+      <button type="button" :class="navClass('users')" @click="selectTab('users')" x-show="isAdmin">Users</button>
+    </aside>
+
+    <section class="content-area">
+      <div class="card section-card" x-show="loading">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading…</p>
+        </div>
+      </div>
+
+      <div class="card section-card" x-show="!loading && activeTab === 'secrets'">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Inventory</p>
+            <h2>Secrets</h2>
+          </div>
+          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Version</th><th>Content Type</th><th>Enabled</th></tr>
+            </thead>
+            <tbody>
+              <template x-if="!data.secrets.length"><tr><td colspan="4" class="empty-state">No secrets found.</td></tr></template>
+              <template x-for="item in data.secrets" :key="item.name + item.version">
+                <tr>
+                  <td x-text="item.name"></td>
+                  <td x-text="truncate(item.version)"></td>
+                  <td x-text="item.contentType || '—'"></td>
+                  <td x-text="item.enabled ? 'Yes' : 'No'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card section-card" x-show="!loading && activeTab === 'keys'">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Inventory</p>
+            <h2>Keys</h2>
+          </div>
+          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Version</th><th>Type</th><th>Curve</th><th>Key ID</th></tr>
+            </thead>
+            <tbody>
+              <template x-if="!data.keys.length"><tr><td colspan="5" class="empty-state">No keys found.</td></tr></template>
+              <template x-for="item in data.keys" :key="item.name + item.version">
+                <tr>
+                  <td x-text="item.name"></td>
+                  <td x-text="truncate(item.version)"></td>
+                  <td x-text="item.kty || '—'"></td>
+                  <td x-text="item.crv || '—'"></td>
+                  <td x-text="truncate(item.kid, 16)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card section-card" x-show="!loading && activeTab === 'certificates'">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Inventory</p>
+            <h2>Certificates</h2>
+          </div>
+          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Version</th></tr>
+            </thead>
+            <tbody>
+              <template x-if="!data.certificates.length"><tr><td colspan="2" class="empty-state">No certificates found.</td></tr></template>
+              <template x-for="item in data.certificates" :key="item.name + item.version">
+                <tr>
+                  <td x-text="item.name"></td>
+                  <td x-text="truncate(item.version)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card section-card" x-show="!loading && activeTab === 'users' && isAdmin">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h2>Users</h2>
+          </div>
+          <button class="btn-outlined" type="button" @click="loadUsers()">Refresh</button>
+        </div>
+
+        <form class="user-form" @submit.prevent="createUser()">
+          <label class="field">
+            <span>Username</span>
+            <input type="text" x-model.trim="newUser.username" required>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input type="password" x-model="newUser.password" required>
+          </label>
+          <label class="field">
+            <span>Role</span>
+            <select x-model="newUser.role">
+              <option value="contributor">Contributor</option>
+              <option value="reader">Reader</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <button class="btn-filled" type="submit">Add user</button>
+        </form>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Username</th><th>Role</th><th>Created At</th><th></th></tr>
+            </thead>
+            <tbody>
+              <template x-if="!data.users.length"><tr><td colspan="4" class="empty-state">No users found.</td></tr></template>
+              <template x-for="item in data.users" :key="item.id">
+                <tr>
+                  <td x-text="item.username"></td>
+                  <td x-text="item.role"></td>
+                  <td x-text="formatDate(item.createdAt)"></td>
+                  <td class="actions-cell">
+                    <button class="btn-text danger" type="button" @click="deleteUser(item)" x-show="item.username !== user.username">Delete</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function dashboardPage() {
+      return {
+        activeTab: 'secrets',
+        loading: true,
+        user: { username: '', role: '' },
+        data: { secrets: [], keys: [], certificates: [], users: [] },
+        newUser: { username: '', password: '', role: 'contributor' },
+        get isAdmin() {
+          return this.user.role === 'admin';
+        },
+        navClass(tab) {
+          return this.activeTab === tab ? 'nav-item active' : 'nav-item';
+        },
+        async init() {
+          try {
+            this.user = await kvApi.get('/ui/api/me');
+            await this.loadCurrentTab();
+          } catch (error) {
+            if (/401/.test(error.message) || error.message === 'authentication required') {
+              window.location.replace('/ui/login');
+              return;
+            }
+            showToast(error.message, 'error');
+          } finally {
+            this.loading = false;
+          }
+        },
+        async selectTab(tab) {
+          this.activeTab = tab;
+          await this.loadCurrentTab();
+        },
+        async loadCurrentTab() {
+          this.loading = true;
+          try {
+            if (this.activeTab === 'secrets') {
+              this.data.secrets = await kvApi.get('/ui/api/secrets');
+            } else if (this.activeTab === 'keys') {
+              this.data.keys = await kvApi.get('/ui/api/keys');
+            } else if (this.activeTab === 'certificates') {
+              this.data.certificates = await kvApi.get('/ui/api/certificates');
+            } else if (this.activeTab === 'users' && this.isAdmin) {
+              await this.loadUsers();
+            }
+          } catch (error) {
+            if (error.message === 'authentication required') {
+              window.location.replace('/ui/login');
+              return;
+            }
+            showToast(error.message, 'error');
+          } finally {
+            this.loading = false;
+          }
+        },
+        async loadUsers() {
+          this.data.users = await kvApi.get('/ui/api/users');
+        },
+        async createUser() {
+          try {
+            await kvApi.post('/ui/api/users', this.newUser);
+            this.newUser = { username: '', password: '', role: 'contributor' };
+            await this.loadUsers();
+            showToast('User created');
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        },
+        async deleteUser(user) {
+          if (!confirm(`Delete ${user.username}?`)) {
+            return;
+          }
+          try {
+            await kvApi.del(`/ui/api/users/${user.id}`);
+            await this.loadUsers();
+            showToast('User deleted');
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        },
+        async logout() {
+          try {
+            await kvApi.post('/ui/api/logout', {});
+          } finally {
+            window.location.replace('/ui/login');
+          }
+        },
+        truncate,
+        formatDate
+      };
+    }
+  </script>
+</body>
+</html>

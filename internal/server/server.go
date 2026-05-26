@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pacorreia/azure-keyvault-emulator/internal/auth"
 	kvcrypto "github.com/pacorreia/azure-keyvault-emulator/internal/crypto"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/handler"
 	"github.com/pacorreia/azure-keyvault-emulator/internal/store"
+	"github.com/pacorreia/azure-keyvault-emulator/internal/web"
 )
 
 var (
@@ -21,17 +23,34 @@ var (
 	serverNetListen              = net.Listen
 )
 
+// NewMux creates the HTTP mux for the Azure Key Vault emulator API only.
+// Existing callers (including tests) use this signature unchanged.
 func NewMux(s store.Storer) http.Handler {
+	return NewMuxWithAuth(s, nil)
+}
+
+// NewMuxWithAuth creates the HTTP mux, optionally mounting the web UI.
+// When a is non-nil the setup/login/dashboard UI is available at /ui/.
+func NewMuxWithAuth(s store.Storer, a *auth.Service) http.Handler {
 	mux := http.NewServeMux()
 	h := handler.New(s)
 	h.Register(mux)
+	if a != nil {
+		webHandler := web.New(a, s)
+		webHandler.Register(mux)
+	}
 	return loggingMiddleware(mux)
 }
 
 func Run(ctx context.Context, s store.Storer) error {
+	return RunWithAuth(ctx, s, nil)
+}
+
+// RunWithAuth starts HTTP and HTTPS servers. When a is non-nil the web UI is enabled.
+func RunWithAuth(ctx context.Context, s store.Storer, a *auth.Service) error {
 	httpPort := envOrDefault("PORT", "8080")
 	httpsPort := envOrDefault("HTTPS_PORT", "8443")
-	handler := NewMux(s)
+	handler := NewMuxWithAuth(s, a)
 
 	httpServer := &http.Server{Addr: ":" + httpPort, Handler: handler}
 	httpsServer := &http.Server{Addr: ":" + httpsPort, Handler: handler}

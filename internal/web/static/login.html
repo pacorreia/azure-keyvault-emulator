@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/static/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <script defer src="/ui/static/app.js"></script>
+</head>
+<body class="auth-page">
+  <main class="auth-shell" x-data="loginPage()" x-init="init()">
+    <section class="card auth-card compact">
+      <div class="hero-badge"><span class="material-symbols-outlined">lock</span></div>
+      <p class="eyebrow">Welcome back</p>
+      <h1>Sign in</h1>
+      <p class="subtitle">Sign in with your emulator account to access keys, secrets, certificates, and users.</p>
+
+      <form class="stack-lg" @submit.prevent="submit()">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" x-model.trim="form.username" autocomplete="username" required>
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <input type="password" x-model="form.password" autocomplete="current-password" required>
+        </label>
+
+        <template x-if="error">
+          <p class="inline-error" x-text="error"></p>
+        </template>
+
+        <button class="btn-filled" type="submit" :disabled="loading">
+          <span x-show="!loading">Sign in</span>
+          <span x-show="loading">Signing in…</span>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    function loginPage() {
+      return {
+        loading: false,
+        error: '',
+        form: { username: '', password: '' },
+        async init() {
+          try {
+            const status = await kvApi.get('/ui/api/status');
+            if (!status.initialized) {
+              window.location.replace('/ui/setup');
+            }
+          } catch {
+            this.error = 'Unable to reach the emulator.';
+          }
+        },
+        async submit() {
+          this.error = '';
+          this.loading = true;
+          try {
+            await kvApi.post('/ui/api/login', this.form);
+            window.location.replace('/ui/dashboard');
+          } catch (error) {
+            this.error = error.message;
+          } finally {
+            this.loading = false;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

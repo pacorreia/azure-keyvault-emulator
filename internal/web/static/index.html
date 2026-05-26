@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Key Vault Emulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/static/style.css">
+</head>
+<body class="centered-page">
+  <main class="card splash-card">
+    <span class="material-symbols-outlined splash-icon">key</span>
+    <h1>Azure Key Vault Emulator</h1>
+    <p>Checking your environment…</p>
+    <div class="spinner" aria-label="Loading"></div>
+  </main>
+  <script>
+    (async () => {
+      try {
+        const response = await fetch('/ui/api/status', { credentials: 'include' });
+        const status = await response.json();
+        if (!status.initialized) {
+          window.location.replace('/ui/setup');
+          return;
+        }
+        if (document.cookie.includes('kv_session=')) {
+          window.location.replace('/ui/dashboard');
+          return;
+        }
+        window.location.replace('/ui/login');
+      } catch {
+        window.location.replace('/ui/login');
+      }
+    })();
+  </script>
+</body>
+</html>
