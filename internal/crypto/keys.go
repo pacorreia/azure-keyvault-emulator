@@ -104,6 +104,13 @@ func ImportKey(jwk model.JSONWebKey, kid string) (KeyMaterial, model.JSONWebKey,
 		if err != nil {
 			return KeyMaterial{}, model.JSONWebKey{}, err
 		}
+		if eBig.Cmp(big.NewInt(1)) <= 0 {
+			return KeyMaterial{}, model.JSONWebKey{}, errors.New("invalid rsa exponent")
+		}
+		maxIntBig := new(big.Int).SetUint64(uint64(^uint(0) >> 1))
+		if eBig.Cmp(maxIntBig) > 0 {
+			return KeyMaterial{}, model.JSONWebKey{}, errors.New("rsa exponent out of range")
+		}
 		pub := &rsa.PublicKey{N: n, E: int(eBig.Int64())}
 		material := KeyMaterial{RSAPub: pub}
 		if jwk.D != "" {
