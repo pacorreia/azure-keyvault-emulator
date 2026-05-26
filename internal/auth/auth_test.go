@@ -198,22 +198,22 @@ func TestListUsersDeleteUserAndCreateUser(t *testing.T) {
 func TestGetConfigSetConfig(t *testing.T) {
 	svc := newTestService(t)
 
-	if value, ok := svc.GetConfig("missing"); ok || value != "" {
-		t.Fatalf("expected missing config, got %q %v", value, ok)
+	if value, ok, err := svc.GetConfig("missing"); ok || value != "" || err != nil {
+		t.Fatalf("expected missing config, got %q %v err=%v", value, ok, err)
 	}
 
 	if err := svc.SetConfig("issuer", "https://example.test"); err != nil {
 		t.Fatal(err)
 	}
-	if value, ok := svc.GetConfig("issuer"); !ok || value != "https://example.test" {
-		t.Fatalf("unexpected config value %q %v", value, ok)
+	if value, ok, err := svc.GetConfig("issuer"); !ok || value != "https://example.test" || err != nil {
+		t.Fatalf("unexpected config value %q %v err=%v", value, ok, err)
 	}
 
 	if err := svc.SetConfig("issuer", "https://updated.test"); err != nil {
 		t.Fatal(err)
 	}
-	if value, ok := svc.GetConfig("issuer"); !ok || value != "https://updated.test" {
-		t.Fatalf("unexpected updated config value %q %v", value, ok)
+	if value, ok, err := svc.GetConfig("issuer"); !ok || value != "https://updated.test" || err != nil {
+		t.Fatalf("unexpected updated config value %q %v err=%v", value, ok, err)
 	}
 }
 

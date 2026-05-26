@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -280,20 +279,20 @@ func (s *Service) DeleteUser(id string) error {
 	return nil
 }
 
-func (s *Service) GetConfig(key string) (string, bool) {
+func (s *Service) GetConfig(key string) (string, bool, error) {
 	if key == "" {
-		return "", false
+		return "", false, nil
 	}
 
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM config WHERE key = ?`, key).Scan(&value)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("auth: GetConfig %q: %v", key, err)
-		}
-		return "", false
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
 	}
-	return value, true
+	if err != nil {
+		return "", false, err
+	}
+	return value, true, nil
 }
 
 func (s *Service) SetConfig(key, value string) error {

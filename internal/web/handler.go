@@ -240,7 +240,7 @@ func (h *Handler) handleSetup(w http.ResponseWriter, r *http.Request) {
 // in-memory key has not yet been loaded. When the server restarts, callers must
 // POST /ui/api/unlock with the original passphrase to restore the key.
 func (h *Handler) isLocked() bool {
-	if _, ok := h.auth.GetConfig("enc_salt"); !ok {
+	if _, ok, err := h.auth.GetConfig("enc_salt"); err != nil || !ok {
 		return false // encryption not configured; server is not in a locked state
 	}
 	return len(h.getEncryptionKey()) == 0
@@ -257,7 +257,11 @@ func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	saltHex, ok := h.auth.GetConfig("enc_salt")
+	saltHex, ok, err := h.auth.GetConfig("enc_salt")
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to read encryption configuration")
+		return
+	}
 	if !ok {
 		h.writeError(w, http.StatusBadRequest, "encryption not configured")
 		return
@@ -268,7 +272,11 @@ func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	encVerify, ok := h.auth.GetConfig("enc_verify")
+	encVerify, ok, err := h.auth.GetConfig("enc_verify")
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "failed to read encryption configuration")
+		return
+	}
 	if !ok {
 		h.writeError(w, http.StatusInternalServerError, "encryption verification token missing")
 		return

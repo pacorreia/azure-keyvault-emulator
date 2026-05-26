@@ -114,10 +114,10 @@ func TestSetupSuccessAndConflict(t *testing.T) {
 	if len(h.getEncryptionKey()) != 32 {
 		t.Fatalf("expected 32-byte encryption key")
 	}
-	if _, ok := a.GetConfig("enc_salt"); !ok {
+	if _, ok, err := a.GetConfig("enc_salt"); !ok || err != nil {
 		t.Fatalf("expected enc_salt config to be stored")
 	}
-	if _, ok := a.GetConfig("enc_verify"); !ok {
+	if _, ok, err := a.GetConfig("enc_verify"); !ok || err != nil {
 		t.Fatalf("expected enc_verify config to be stored")
 	}
 
