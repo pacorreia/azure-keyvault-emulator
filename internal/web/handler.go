@@ -11,7 +11,6 @@ import (
 	"mime"
 	"net/http"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -321,7 +320,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    session.Token,
 		Path:     "/ui",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   true,
 		Expires:  time.Unix(session.ExpiresAt, 0),
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -332,7 +331,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
 		h.auth.Logout(cookie.Value)
 	}
-	h.clearSessionCookie(w, r)
+	h.clearSessionCookie(w)
 	h.writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -482,27 +481,17 @@ func decodeJSON(r *http.Request, dst any) error {
 	return nil
 }
 
-func (h *Handler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     "/ui",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   true,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		SameSite: http.SameSiteLaxMode,
 	})
-}
-
-func isSecureRequest(r *http.Request) bool {
-	if r == nil {
-		return false
-	}
-	if r.TLS != nil {
-		return true
-	}
-	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, value any) {
