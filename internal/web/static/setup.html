@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azure Key Vault Emulator — Initial Setup</title>
   <link rel="stylesheet" href="/ui/static/style.css">
+  <script src="/ui/static/app.js"></script>
   <script defer src="/ui/static/alpine.min.js"></script>
-  <script defer src="/ui/static/app.js"></script>
 </head>
 <body class="auth-page">
   <main class="auth-shell" x-data="setupPage()" x-init="init()">
@@ -49,12 +49,16 @@
         </div>
 
         <template x-if="error">
-          <p class="inline-error" x-text="error"></p>
+          <div class="error-block">
+            <p class="inline-error" x-text="error"></p>
+            <button class="btn-text" type="button" @click="checkStatus()">Retry</button>
+          </div>
         </template>
 
-        <button class="btn-filled" type="submit" :disabled="loading">
-          <span x-show="!loading">Create Admin Account</span>
-          <span x-show="loading">Creating…</span>
+        <button class="btn-filled" type="submit" :disabled="loading || checking || !!error">
+          <span x-show="checking">Checking…</span>
+          <span x-show="!checking && !loading">Create Admin Account</span>
+          <span x-show="!checking && loading">Creating…</span>
         </button>
       </form>
     </section>
@@ -65,6 +69,7 @@
       return {
         loading: false,
         error: '',
+        checking: true,
         form: {
           username: '',
           password: '',
@@ -72,13 +77,20 @@
           passphrase: ''
         },
         async init() {
+          await this.checkStatus();
+        },
+        async checkStatus() {
+          this.checking = true;
+          this.error = '';
           try {
             const status = await kvApi.get('/ui/api/status');
             if (status.initialized) {
               window.location.replace('/ui/');
             }
-          } catch {
-            this.error = 'Unable to reach the emulator.';
+          } catch (err) {
+            this.error = err.message || 'Unable to reach the emulator.';
+          } finally {
+            this.checking = false;
           }
         },
         generatePassphrase() {

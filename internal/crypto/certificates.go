@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pacorreia/azure-keyvault-emulator/internal/model"
+	"golang.org/x/crypto/pkcs12"
 )
 
 var (
@@ -21,11 +22,26 @@ var (
 	createCertificate = x509.CreateCertificate
 )
 
-// GenerateSelfSignedCert creates a new RSA 2048-bit self-signed X.509 certificate.
-func GenerateSelfSignedCert(name string, policy *model.CertificatePolicy) (*rsa.PrivateKey, []byte, error) {
+// CertOptions controls certificate generation behaviour.
+type CertOptions struct {
+	// CertType is one of "CA", "intermediate", or "leaf". Defaults to "leaf".
+	CertType string
+	// IssuerCert and IssuerKey are the signing parent. When nil the certificate is self-signed.
+	IssuerCert *x509.Certificate
+	IssuerKey  *rsa.PrivateKey
+}
+
+// GenerateCert creates a new RSA 2048-bit X.509 certificate controlled by opts.
+// Subject and validity are read from policy.X509Props ("subject", "validity_months").
+// When opts.IssuerCert is nil the certificate is self-signed.
+func GenerateCert(name string, policy *model.CertificatePolicy, opts CertOptions) (*rsa.PrivateKey, []byte, error) {
 	priv, err := rsaGenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
+	}
+	certType := opts.CertType
+	if certType == "" {
+		certType = "leaf"
 	}
 	subject := "CN=" + name
 	if policy != nil && policy.X509Props != nil {
@@ -35,26 +51,51 @@ func GenerateSelfSignedCert(name string, policy *model.CertificatePolicy) (*rsa.
 	}
 	notBefore := time.Now().Add(-5 * time.Minute)
 	notAfter := notBefore.Add(365 * 24 * time.Hour)
+	if policy != nil && policy.X509Props != nil {
+		if vm, ok := policy.X509Props["validity_months"].(float64); ok && vm > 0 {
+			notAfter = notBefore.Add(time.Duration(vm*30*24) * time.Hour)
+		}
+	}
 	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serial, err := randInt(rand.Reader, serialLimit)
 	if err != nil {
 		return nil, nil, err
+	}
+	isCA := certType == "CA" || certType == "intermediate"
+	var keyUsage x509.KeyUsage
+	var extKeyUsage []x509.ExtKeyUsage
+	if isCA {
+		keyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	} else {
+		keyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
+		extKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 	}
 	tpl := &x509.Certificate{
 		SerialNumber:          serial,
 		Subject:               ParseSubject(subject),
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		KeyUsage:              keyUsage,
+		ExtKeyUsage:           extKeyUsage,
 		BasicConstraintsValid: true,
-		IsCA:                  true,
+		IsCA:                  isCA,
 	}
-	der, err := createCertificate(rand.Reader, tpl, tpl, &priv.PublicKey, priv)
+	signerCert := opts.IssuerCert
+	signerKey := opts.IssuerKey
+	if signerCert == nil {
+		signerCert = tpl
+		signerKey = priv
+	}
+	der, err := createCertificate(rand.Reader, tpl, signerCert, &priv.PublicKey, signerKey)
 	if err != nil {
 		return nil, nil, err
 	}
 	return priv, der, nil
+}
+
+// GenerateSelfSignedCert creates a new RSA 2048-bit self-signed CA certificate.
+func GenerateSelfSignedCert(name string, policy *model.CertificatePolicy) (*rsa.PrivateKey, []byte, error) {
+	return GenerateCert(name, policy, CertOptions{CertType: "CA"})
 }
 
 func GenerateTLSCertificate(cn string, dnsNames []string) (tls.Certificate, error) {
@@ -77,59 +118,71 @@ func GenerateTLSCertificate(cn string, dnsNames []string) (tls.Certificate, erro
 	return tls.X509KeyPair(certPEM, keyPEM)
 }
 
-// ParseImportedCertificate parses PEM or DER encoded certificate data.
-func ParseImportedCertificate(value string) (*x509.Certificate, *rsa.PrivateKey, []byte, error) {
-	data := []byte(value)
-	if !strings.Contains(value, "BEGIN ") {
-		decoded, err := base64.StdEncoding.DecodeString(value)
-		if err == nil {
-			data = decoded
-		}
-	}
+// parsePEMData extracts the first certificate and RSA private key from PEM-encoded data.
+func parsePEMData(data []byte) (*x509.Certificate, *rsa.PrivateKey, []byte, error) {
 	var cert *x509.Certificate
 	var priv *rsa.PrivateKey
-	pemData := data
-	if block, rest := pem.Decode(data); block != nil {
-		pemData = data
-		current := block
-		remaining := rest
-		for current != nil {
-			switch current.Type {
-			case "CERTIFICATE":
-				parsed, err := x509.ParseCertificate(current.Bytes)
-				if err == nil && cert == nil {
-					cert = parsed
-				}
-			case "RSA PRIVATE KEY":
-				parsed, err := x509.ParsePKCS1PrivateKey(current.Bytes)
-				if err == nil && priv == nil {
-					priv = parsed
-				}
-			case "PRIVATE KEY":
-				parsed, err := x509.ParsePKCS8PrivateKey(current.Bytes)
-				if err == nil {
-					if key, ok := parsed.(*rsa.PrivateKey); ok && priv == nil {
-						priv = key
-					}
+	pemOut := data
+	block, rest := pem.Decode(data)
+	for block != nil {
+		switch block.Type {
+		case "CERTIFICATE":
+			if c, err := x509.ParseCertificate(block.Bytes); err == nil && cert == nil {
+				cert = c
+			}
+		case "RSA PRIVATE KEY":
+			if k, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil && priv == nil {
+				priv = k
+			}
+		case "PRIVATE KEY":
+			if raw, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+				if k, ok := raw.(*rsa.PrivateKey); ok && priv == nil {
+					priv = k
 				}
 			}
-			current, remaining = pem.Decode(remaining)
 		}
-	} else {
-		parsed, err := x509.ParseCertificate(data)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("invalid certificate value")
-		}
-		cert = parsed
-		pemData = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: data})
+		block, rest = pem.Decode(rest)
 	}
 	if cert == nil {
 		return nil, nil, nil, fmt.Errorf("invalid certificate value")
 	}
-	if priv != nil && !strings.Contains(string(pemData), "PRIVATE KEY") {
-		pemData = append(pemData, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})...)
+	if priv != nil && !strings.Contains(string(pemOut), "PRIVATE KEY") {
+		pemOut = append(pemOut, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})...)
 	}
-	return cert, priv, pemData, nil
+	return cert, priv, pemOut, nil
+}
+
+// ParseImportedCertificate parses PEM, DER, or PKCS#12/PFX encoded certificate data.
+// For PKCS#12 files, password is used to decrypt the archive.
+func ParseImportedCertificate(value, password string) (*x509.Certificate, *rsa.PrivateKey, []byte, error) {
+	data := []byte(value)
+	if !strings.Contains(value, "BEGIN ") {
+		if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
+			data = decoded
+		}
+	}
+
+	// PEM path — fast-path if the data starts with a PEM block.
+	if block, _ := pem.Decode(data); block != nil {
+		return parsePEMData(data)
+	}
+
+	// PKCS#12/PFX path — try before raw DER, since PFX is ASN.1 like DER.
+	if blocks, err := pkcs12.ToPEM(data, password); err == nil && len(blocks) > 0 {
+		var pemData []byte
+		for _, block := range blocks {
+			pemData = append(pemData, pem.EncodeToMemory(block)...)
+		}
+		return parsePEMData(pemData)
+	}
+
+	// Raw DER path.
+	parsed, err := x509.ParseCertificate(data)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid certificate value")
+	}
+	pemData := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: data})
+	return parsed, nil, pemData, nil
 }
 
 // ParseSubject parses a distinguished name string into a pkix.Name.
@@ -138,8 +191,19 @@ func ParseSubject(subject string) pkix.Name {
 	parts := strings.Split(subject, ",")
 	for _, part := range parts {
 		piece := strings.TrimSpace(part)
-		if strings.HasPrefix(piece, "CN=") {
+		switch {
+		case strings.HasPrefix(piece, "CN="):
 			name.CommonName = strings.TrimPrefix(piece, "CN=")
+		case strings.HasPrefix(piece, "O="):
+			name.Organization = append(name.Organization, strings.TrimPrefix(piece, "O="))
+		case strings.HasPrefix(piece, "OU="):
+			name.OrganizationalUnit = append(name.OrganizationalUnit, strings.TrimPrefix(piece, "OU="))
+		case strings.HasPrefix(piece, "C="):
+			name.Country = append(name.Country, strings.TrimPrefix(piece, "C="))
+		case strings.HasPrefix(piece, "ST="):
+			name.Province = append(name.Province, strings.TrimPrefix(piece, "ST="))
+		case strings.HasPrefix(piece, "L="):
+			name.Locality = append(name.Locality, strings.TrimPrefix(piece, "L="))
 		}
 	}
 	return name

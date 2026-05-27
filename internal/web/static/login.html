@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign in</title>
   <link rel="stylesheet" href="/ui/static/style.css">
+  <script src="/ui/static/app.js"></script>
   <script defer src="/ui/static/alpine.min.js"></script>
-  <script defer src="/ui/static/app.js"></script>
 </head>
 <body class="auth-page">
   <main class="auth-shell" x-data="loginPage()" x-init="init()">
-    <section class="card auth-card compact">
+    <!-- Login form -->
+    <section class="card auth-card compact" x-show="!locked">
       <div class="hero-badge">🔒</div>
       <p class="eyebrow">Welcome back</p>
       <h1>Sign in</h1>
@@ -28,12 +29,40 @@
         </label>
 
         <template x-if="error">
-          <p class="inline-error" x-text="error"></p>
+          <div class="error-block">
+            <p class="inline-error" x-text="error"></p>
+            <button class="btn-text" type="button" @click="checkStatus()" x-show="unreachable">Retry</button>
+          </div>
         </template>
 
-        <button class="btn-filled" type="submit" :disabled="loading">
-          <span x-show="!loading">Sign in</span>
-          <span x-show="loading">Signing in…</span>
+        <button class="btn-filled" type="submit" :disabled="loading || checking || unreachable">
+          <span x-show="checking">Checking…</span>
+          <span x-show="!checking && !loading">Sign in</span>
+          <span x-show="!checking && loading">Signing in…</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Unlock form (server restarted, passphrase needed) -->
+    <section class="card auth-card compact" x-show="locked">
+      <div class="hero-badge">🔐</div>
+      <p class="eyebrow">Vault locked</p>
+      <h1>Unlock Vault</h1>
+      <p class="subtitle">The server restarted and the encryption key was cleared. Enter your passphrase to unlock the vault.</p>
+
+      <form class="stack-lg" @submit.prevent="unlock()">
+        <label class="field">
+          <span>Encryption passphrase</span>
+          <input type="password" x-model="unlockForm.passphrase" autocomplete="current-password" required>
+        </label>
+
+        <template x-if="unlockError">
+          <p class="inline-error" x-text="unlockError"></p>
+        </template>
+
+        <button class="btn-filled" type="submit" :disabled="unlockLoading">
+          <span x-show="!unlockLoading">Unlock Vault</span>
+          <span x-show="unlockLoading">Unlocking…</span>
         </button>
       </form>
     </section>
@@ -43,16 +72,33 @@
     function loginPage() {
       return {
         loading: false,
+        checking: true,
+        unreachable: false,
+        locked: false,
         error: '',
+        unlockLoading: false,
+        unlockError: '',
         form: { username: '', password: '' },
+        unlockForm: { passphrase: '' },
         async init() {
+          await this.checkStatus();
+        },
+        async checkStatus() {
+          this.checking = true;
+          this.unreachable = false;
+          this.error = '';
           try {
             const status = await kvApi.get('/ui/api/status');
             if (!status.initialized) {
               window.location.replace('/ui/setup');
+              return;
             }
-          } catch {
-            this.error = 'Unable to reach the emulator.';
+            this.locked = status.locked === true;
+          } catch (err) {
+            this.unreachable = true;
+            this.error = err.message || 'Unable to reach the emulator.';
+          } finally {
+            this.checking = false;
           }
         },
         async submit() {
@@ -65,6 +111,19 @@
             this.error = error.message;
           } finally {
             this.loading = false;
+          }
+        },
+        async unlock() {
+          this.unlockError = '';
+          this.unlockLoading = true;
+          try {
+            await kvApi.post('/ui/api/unlock', this.unlockForm);
+            this.locked = false;
+            showToast('Vault unlocked');
+          } catch (error) {
+            this.unlockError = error.message;
+          } finally {
+            this.unlockLoading = false;
           }
         }
       };

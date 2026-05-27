@@ -28,7 +28,25 @@ func (s *Store) CreateCertificate(name string, req model.CreateCertificateReques
 	now := nowUnix()
 	version := newVersion()
 	attrs := buildAttributes(req.Attributes, now, now)
-	priv, der, err := kvcrypto.GenerateSelfSignedCert(name, policy)
+
+	var certOpts kvcrypto.CertOptions
+	certType := "CA"
+	if policy.X509Props != nil {
+		if t, ok := policy.X509Props["cert_type"].(string); ok && t != "" {
+			certType = t
+		}
+		if issuerName, ok := policy.X509Props["issuer_name"].(string); ok && issuerName != "" {
+			issuerCert, issuerKey, err := s.getIssuerMaterial(issuerName)
+			if err != nil {
+				return CertificateRecord{}, newError(http.StatusBadRequest, "InvalidIssuer", err.Error())
+			}
+			certOpts.IssuerCert = issuerCert
+			certOpts.IssuerKey = issuerKey
+		}
+	}
+	certOpts.CertType = certType
+
+	priv, der, err := kvcrypto.GenerateCert(name, policy, certOpts)
 	if err != nil {
 		return CertificateRecord{}, newError(http.StatusBadRequest, "InvalidOperation", err.Error())
 	}
@@ -73,7 +91,7 @@ func (s *Store) ImportCertificate(name string, req model.ImportCertificateReques
 		return CertificateRecord{}, newError(http.StatusBadRequest, "BadParameter", "Certificate value is required.")
 	}
 
-	cert, priv, pemValue, err := kvcrypto.ParseImportedCertificate(req.Value)
+	cert, priv, pemValue, err := kvcrypto.ParseImportedCertificate(req.Value, req.Password)
 	if err != nil {
 		return CertificateRecord{}, newError(http.StatusBadRequest, "BadParameter", err.Error())
 	}
@@ -321,6 +339,27 @@ func (s *Store) RecoverDeletedCertificate(name string) (CertificateRecord, error
 	s.certificates[name] = deleted.entry
 	delete(s.deletedCertificates, name)
 	return cloneCertificateRecord(latestCertificate(deleted.entry).record), nil
+}
+
+// getIssuerMaterial retrieves the cert and private key stored for an issuer certificate.
+// Must be called while holding s.mu (for reading).
+func (s *Store) getIssuerMaterial(issuerName string) (*x509.Certificate, *rsa.PrivateKey, error) {
+	entry := s.secrets[issuerName]
+	if entry == nil {
+		return nil, nil, fmt.Errorf("issuer certificate %q not found in vault", issuerName)
+	}
+	latest := latestSecret(entry)
+	if latest == nil {
+		return nil, nil, fmt.Errorf("issuer certificate %q has no versions", issuerName)
+	}
+	cert, key, _, err := kvcrypto.ParseImportedCertificate(latest.record.Value, "")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse issuer certificate %q: %w", issuerName, err)
+	}
+	if key == nil {
+		return nil, nil, fmt.Errorf("issuer certificate %q has no private key and cannot sign", issuerName)
+	}
+	return cert, key, nil
 }
 
 func defaultCertificatePolicy(name string, policy *model.CertificatePolicy) *model.CertificatePolicy {

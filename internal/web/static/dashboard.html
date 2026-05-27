@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azure Key Vault Emulator Dashboard</title>
   <link rel="stylesheet" href="/ui/static/style.css">
+  <script src="/ui/static/app.js"></script>
   <script defer src="/ui/static/alpine.min.js"></script>
-  <script defer src="/ui/static/app.js"></script>
 </head>
 <body x-data="dashboardPage()" x-init="init()">
   <header class="app-bar">
@@ -42,21 +42,30 @@
             <p class="eyebrow">Inventory</p>
             <h2>Secrets</h2>
           </div>
-          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+          <div class="header-actions">
+            <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+            <button class="btn-filled" type="button" @click="openCreateSecret()">+ New Secret</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
             <thead>
-              <tr><th>Name</th><th>Version</th><th>Content Type</th><th>Enabled</th></tr>
+              <tr><th>Name</th><th>Version</th><th>Content Type</th><th>Enabled</th><th>Created</th><th>Expires</th><th></th></tr>
             </thead>
             <tbody>
-              <template x-if="!data.secrets.length"><tr><td colspan="4" class="empty-state">No secrets found.</td></tr></template>
+              <template x-if="!data.secrets.length"><tr><td colspan="7" class="empty-state">No secrets found.</td></tr></template>
               <template x-for="item in data.secrets" :key="item.name + item.version">
                 <tr>
                   <td x-text="item.name"></td>
                   <td x-text="truncate(item.version)"></td>
                   <td x-text="item.contentType || '—'"></td>
                   <td x-text="item.enabled ? 'Yes' : 'No'"></td>
+                  <td x-text="formatDate(item.created)"></td>
+                  <td x-text="item.expires ? formatDate(item.expires) : '—'" :class="isExpired(item.expires) ? 'expired-cell' : ''"></td>
+                  <td class="actions-cell">
+                    <button class="btn-text" type="button" @click="viewSecret(item)">View</button>
+                    <button class="btn-text danger" type="button" @click="deleteSecret(item)">Delete</button>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -70,15 +79,18 @@
             <p class="eyebrow">Inventory</p>
             <h2>Keys</h2>
           </div>
-          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+          <div class="header-actions">
+            <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+            <button class="btn-filled" type="button" @click="openCreateKey()">+ New Key</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
             <thead>
-              <tr><th>Name</th><th>Version</th><th>Type</th><th>Curve</th><th>Key ID</th></tr>
+              <tr><th>Name</th><th>Version</th><th>Type</th><th>Curve</th><th>Key ID</th><th>Created</th><th>Expires</th><th></th></tr>
             </thead>
             <tbody>
-              <template x-if="!data.keys.length"><tr><td colspan="5" class="empty-state">No keys found.</td></tr></template>
+              <template x-if="!data.keys.length"><tr><td colspan="8" class="empty-state">No keys found.</td></tr></template>
               <template x-for="item in data.keys" :key="item.name + item.version">
                 <tr>
                   <td x-text="item.name"></td>
@@ -86,6 +98,12 @@
                   <td x-text="item.kty || '—'"></td>
                   <td x-text="item.crv || '—'"></td>
                   <td x-text="truncate(item.kid, 16)"></td>
+                  <td x-text="formatDate(item.created)"></td>
+                  <td x-text="item.expires ? formatDate(item.expires) : '—'" :class="isExpired(item.expires) ? 'expired-cell' : ''"></td>
+                  <td class="actions-cell">
+                    <button class="btn-text" type="button" @click="viewKey(item)">View</button>
+                    <button class="btn-text danger" type="button" @click="deleteKey(item)">Delete</button>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -99,19 +117,29 @@
             <p class="eyebrow">Inventory</p>
             <h2>Certificates</h2>
           </div>
-          <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+          <div class="header-actions">
+            <button class="btn-outlined" type="button" @click="loadCurrentTab()">Refresh</button>
+            <button class="btn-filled" type="button" @click="openCreateCertificate('generate')">+ Generate</button>
+            <button class="btn-filled" type="button" @click="openCreateCertificate('import')">+ Import PEM</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
             <thead>
-              <tr><th>Name</th><th>Version</th></tr>
+              <tr><th>Name</th><th>Version</th><th>Created</th><th>Expires</th><th></th></tr>
             </thead>
             <tbody>
-              <template x-if="!data.certificates.length"><tr><td colspan="2" class="empty-state">No certificates found.</td></tr></template>
+              <template x-if="!data.certificates.length"><tr><td colspan="5" class="empty-state">No certificates found.</td></tr></template>
               <template x-for="item in data.certificates" :key="item.name + item.version">
                 <tr>
                   <td x-text="item.name"></td>
                   <td x-text="truncate(item.version)"></td>
+                  <td x-text="formatDate(item.created)"></td>
+                  <td x-text="item.expires ? formatDate(item.expires) : '—'" :class="isExpired(item.expires) ? 'expired-cell' : ''"></td>
+                  <td class="actions-cell">
+                    <button class="btn-text" type="button" @click="viewCertificate(item)">View</button>
+                    <button class="btn-text danger" type="button" @click="deleteCertificate(item)">Delete</button>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -172,6 +200,430 @@
     </section>
   </main>
 
+  <!-- ── Modal: Create Secret ── -->
+  <div class="modal-backdrop" x-show="modals.createSecret" @click.self="closeModal('createSecret')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2>New Secret</h2>
+        <button class="btn-text" type="button" @click="closeModal('createSecret')">✕</button>
+      </div>
+      <form class="stack-lg" @submit.prevent="submitCreateSecret()">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" x-model.trim="secretForm.name" autocomplete="off" required>
+        </label>
+        <label class="field">
+          <span>Value</span>
+          <div class="value-box">
+            <input class="value-input" :type="secretForm.showValue ? 'text' : 'password'" x-model="secretForm.value" autocomplete="new-password" required style="flex:1;border:none;background:transparent;outline:none;font:inherit;color:inherit;">
+            <button class="btn-text reveal-btn" type="button" @click="secretForm.showValue = !secretForm.showValue" x-text="secretForm.showValue ? 'Hide' : 'Show'"></button>
+          </div>
+        </label>
+        <label class="field">
+          <span>Content Type <small>(optional)</small></span>
+          <input type="text" x-model.trim="secretForm.contentType" autocomplete="off" placeholder="e.g. text/plain">
+        </label>
+        <label class="field">
+          <span>Expires <small>(optional)</small></span>
+          <input type="datetime-local" x-model="secretForm.expiresAt" autocomplete="off">
+        </label>
+        <template x-if="secretForm.error">
+          <p class="inline-error" x-text="secretForm.error"></p>
+        </template>
+        <div class="modal-actions">
+          <button class="btn-outlined" type="button" @click="closeModal('createSecret')">Cancel</button>
+          <button class="btn-filled" type="submit" :disabled="secretForm.loading">
+            <span x-show="!secretForm.loading">Create</span>
+            <span x-show="secretForm.loading">Creating…</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: View Secret ── -->
+  <div class="modal-backdrop" x-show="modals.viewSecret" @click.self="closeModal('viewSecret')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2>Secret: <span x-text="secretDetail.name"></span></h2>
+        <button class="btn-text" type="button" @click="closeModal('viewSecret')">✕</button>
+      </div>
+      <div class="stack-lg">
+        <template x-if="secretDetail.loading">
+          <div class="loading-state" style="min-height:80px"><div class="spinner"></div></div>
+        </template>
+        <template x-if="!secretDetail.loading">
+          <div class="stack-lg">
+            <div class="detail-row">
+              <span class="detail-label">Version</span>
+              <span class="detail-value" x-text="truncate(secretDetail.version, 12) || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Content Type</span>
+              <span class="detail-value" x-text="secretDetail.contentType || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Enabled</span>
+              <span class="detail-value" x-text="secretDetail.enabled ? 'Yes' : 'No'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Created</span>
+              <span class="detail-value" x-text="formatDate(secretDetail.created)"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Updated</span>
+              <span class="detail-value" x-text="formatDate(secretDetail.updated)"></span>
+            </div>
+            <template x-if="secretDetail.notBefore">
+              <div class="detail-row">
+                <span class="detail-label">Not Before</span>
+                <span class="detail-value" x-text="formatDate(secretDetail.notBefore)"></span>
+              </div>
+            </template>
+            <template x-if="secretDetail.expires">
+              <div class="detail-row">
+                <span class="detail-label">Expires</span>
+                <span class="detail-value" :class="isExpired(secretDetail.expires) ? 'expired-cell' : ''" x-text="formatDate(secretDetail.expires)"></span>
+              </div>
+            </template>
+            <div class="field">
+              <span>Value</span>
+              <div class="value-box">
+                <span x-show="!secretDetail.revealed" class="value-masked">••••••••••••</span>
+                <pre x-show="secretDetail.revealed" class="value-pre" x-text="secretDetail.value"></pre>
+                <button class="btn-text reveal-btn" type="button" @click="secretDetail.revealed = !secretDetail.revealed"
+                  x-text="secretDetail.revealed ? 'Hide' : 'Reveal'"></button>
+              </div>
+            </div>
+            <template x-if="secretDetail.error">
+              <p class="inline-error" x-text="secretDetail.error"></p>
+            </template>
+            <div class="modal-actions">
+              <button class="btn-outlined" type="button" @click="copyValue(secretDetail.value)">Copy Value</button>
+              <button class="btn-outlined" type="button" @click="closeModal('viewSecret')">Close</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Create Key ── -->
+  <div class="modal-backdrop" x-show="modals.createKey" @click.self="closeModal('createKey')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2>New Key</h2>
+        <button class="btn-text" type="button" @click="closeModal('createKey')">✕</button>
+      </div>
+      <form class="stack-lg" @submit.prevent="submitCreateKey()">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" x-model.trim="keyForm.name" autocomplete="off" required>
+        </label>
+        <label class="field">
+          <span>Key Type</span>
+          <select x-model="keyForm.kty">
+            <option value="RSA">RSA</option>
+            <option value="EC">EC (Elliptic Curve)</option>
+            <option value="oct">oct (Symmetric)</option>
+          </select>
+        </label>
+        <template x-if="keyForm.kty === 'RSA'">
+          <label class="field">
+            <span>Key Size (bits)</span>
+            <select x-model.number="keyForm.keySize">
+              <option value="2048">2048</option>
+              <option value="3072">3072</option>
+              <option value="4096">4096</option>
+            </select>
+          </label>
+        </template>
+        <template x-if="keyForm.kty === 'EC'">
+          <label class="field">
+            <span>Curve</span>
+            <select x-model="keyForm.crv">
+              <option value="P-256">P-256</option>
+              <option value="P-384">P-384</option>
+              <option value="P-521">P-521</option>
+            </select>
+          </label>
+        </template>        <label class="field">
+          <span>Expires <small>(optional)</small></span>
+          <input type="datetime-local" x-model="keyForm.expiresAt" autocomplete="off">
+        </label>        <template x-if="keyForm.error">
+          <p class="inline-error" x-text="keyForm.error"></p>
+        </template>
+        <div class="modal-actions">
+          <button class="btn-outlined" type="button" @click="closeModal('createKey')">Cancel</button>
+          <button class="btn-filled" type="submit" :disabled="keyForm.loading">
+            <span x-show="!keyForm.loading">Create</span>
+            <span x-show="keyForm.loading">Creating…</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: View Key ── -->
+  <div class="modal-backdrop" x-show="modals.viewKey" @click.self="closeModal('viewKey')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2>Key: <span x-text="keyDetail.name"></span></h2>
+        <button class="btn-text" type="button" @click="closeModal('viewKey')">✕</button>
+      </div>
+      <div class="stack-lg">
+        <template x-if="keyDetail.loading">
+          <div class="loading-state" style="min-height:80px"><div class="spinner"></div></div>
+        </template>
+        <template x-if="!keyDetail.loading">
+          <div class="stack-lg">
+            <div class="detail-row">
+              <span class="detail-label">Version</span>
+              <span class="detail-value" x-text="truncate(keyDetail.version, 12) || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Type</span>
+              <span class="detail-value" x-text="keyDetail.kty || '—'"></span>
+            </div>
+            <template x-if="keyDetail.crv">
+              <div class="detail-row">
+                <span class="detail-label">Curve</span>
+                <span class="detail-value" x-text="keyDetail.crv"></span>
+              </div>
+            </template>
+            <div class="detail-row">
+              <span class="detail-label">Key ID</span>
+              <span class="detail-value monospace" x-text="keyDetail.kid || '—'"></span>
+            </div>
+            <template x-if="keyDetail.keyOps && keyDetail.keyOps.length">
+              <div class="detail-row">
+                <span class="detail-label">Operations</span>
+                <span class="detail-value" x-text="keyDetail.keyOps.join(', ')"></span>
+              </div>
+            </template>
+            <div class="detail-row">
+              <span class="detail-label">Created</span>
+              <span class="detail-value" x-text="formatDate(keyDetail.created)"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Updated</span>
+              <span class="detail-value" x-text="formatDate(keyDetail.updated)"></span>
+            </div>
+            <template x-if="keyDetail.notBefore">
+              <div class="detail-row">
+                <span class="detail-label">Not Before</span>
+                <span class="detail-value" x-text="formatDate(keyDetail.notBefore)"></span>
+              </div>
+            </template>
+            <template x-if="keyDetail.expires">
+              <div class="detail-row">
+                <span class="detail-label">Expires</span>
+                <span class="detail-value" :class="isExpired(keyDetail.expires) ? 'expired-cell' : ''" x-text="formatDate(keyDetail.expires)"></span>
+              </div>
+            </template>
+            <template x-if="keyDetail.n">
+              <div class="field">
+                <span>Modulus (n)</span>
+                <div class="value-box"><pre class="value-pre" style="font-size:11px" x-text="keyDetail.n"></pre></div>
+              </div>
+            </template>
+            <template x-if="keyDetail.x">
+              <div class="detail-row">
+                <span class="detail-label">X</span>
+                <span class="detail-value monospace" style="word-break:break-all;font-size:11px" x-text="keyDetail.x"></span>
+              </div>
+            </template>
+            <template x-if="keyDetail.y">
+              <div class="detail-row">
+                <span class="detail-label">Y</span>
+                <span class="detail-value monospace" style="word-break:break-all;font-size:11px" x-text="keyDetail.y"></span>
+              </div>
+            </template>
+            <template x-if="keyDetail.error">
+              <p class="inline-error" x-text="keyDetail.error"></p>
+            </template>
+            <div class="modal-actions">
+              <button class="btn-outlined" type="button" @click="exportKeyAsPem()" :disabled="!keyDetail.publicKeyPem">Export Public Key (PEM)</button>
+              <button class="btn-outlined" type="button" @click="closeModal('viewKey')">Close</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Create/Import Certificate ── -->
+  <div class="modal-backdrop" x-show="modals.createCertificate" @click.self="closeModal('createCertificate')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2 x-text="certForm.mode === 'generate' ? 'Generate Certificate' : 'Import Certificate'"></h2>
+        <button class="btn-text" type="button" @click="closeModal('createCertificate')">✕</button>
+      </div>
+      <form class="stack-lg" @submit.prevent="submitCreateCertificate()">
+        <label class="field">
+          <span>Name <small>(Key Vault identifier)</small></span>
+          <input type="text" x-model.trim="certForm.name" autocomplete="off" required>
+        </label>
+        <template x-if="certForm.mode === 'generate'">
+          <div class="stack-lg">
+            <label class="field">
+              <span>Certificate type</span>
+              <div class="segmented-control">
+                <button type="button" :class="certForm.certType === 'CA' ? 'active' : ''" @click="certForm.certType = 'CA'; certForm.issuerName = ''">CA (Root)</button>
+                <button type="button" :class="certForm.certType === 'intermediate' ? 'active' : ''" @click="certForm.certType = 'intermediate'">Intermediate</button>
+                <button type="button" :class="certForm.certType === 'leaf' ? 'active' : ''" @click="certForm.certType = 'leaf'">Leaf</button>
+              </div>
+            </label>
+            <template x-if="certForm.certType === 'intermediate' || certForm.certType === 'leaf'">
+              <label class="field">
+                <span>Issued by <small>(must have a private key in this vault)</small></span>
+                <select x-model="certForm.issuerName" required>
+                  <option value="">— select issuer —</option>
+                  <template x-for="c in data.certificates" :key="c.name">
+                    <option :value="c.name" x-text="c.name"></option>
+                  </template>
+                </select>
+              </label>
+            </template>
+            <label class="field">
+              <span>Common Name (CN) <small>(defaults to Name)</small></span>
+              <input type="text" x-model.trim="certForm.commonName" autocomplete="off" :placeholder="certForm.name || 'e.g. myservice.example.com'">
+            </label>
+            <div class="form-row">
+              <label class="field">
+                <span>Organization (O)</span>
+                <input type="text" x-model.trim="certForm.organization" autocomplete="organization" placeholder="e.g. Acme Corp">
+              </label>
+              <label class="field">
+                <span>Country (C) <small>2-letter ISO</small></span>
+                <input type="text" x-model.trim="certForm.country" autocomplete="country" placeholder="e.g. US" maxlength="2" style="text-transform:uppercase">
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>State / Province (ST)</span>
+                <input type="text" x-model.trim="certForm.state" autocomplete="address-level1" placeholder="e.g. California">
+              </label>
+              <label class="field">
+                <span>Locality / City (L)</span>
+                <input type="text" x-model.trim="certForm.locality" autocomplete="address-level2" placeholder="e.g. San Francisco">
+              </label>
+            </div>
+            <label class="field">
+              <span>Validity (months)</span>
+              <input type="number" x-model.number="certForm.validityMonths" min="1" max="120" value="12">
+            </label>
+          </div>
+        </template>
+        <template x-if="certForm.mode === 'import'">
+          <div class="stack-lg">
+            <div class="segmented-control">
+              <button type="button" :class="certForm.format === 'pem' ? 'active' : ''" @click="certForm.format = 'pem'; certForm.value = ''; certForm.fileName = ''">PEM / DER</button>
+              <button type="button" :class="certForm.format === 'pkcs12' ? 'active' : ''" @click="certForm.format = 'pkcs12'; certForm.value = ''; certForm.fileName = ''">PFX / PKCS#12</button>
+            </div>
+            <template x-if="certForm.format === 'pem'">
+              <label class="field">
+                <span>PEM or Base64-DER content</span>
+                <textarea class="field-textarea" x-model="certForm.value" rows="8" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" required></textarea>
+              </label>
+            </template>
+            <template x-if="certForm.format === 'pkcs12'">
+              <div class="stack-lg">
+                <label class="field">
+                  <span>PFX / PKCS#12 file</span>
+                  <div class="file-pick-row">
+                    <input type="file" id="certFilePicker" accept=".pfx,.p12,.pkcs12" style="display:none" @change="loadCertFile($event)">
+                    <button type="button" class="btn-outlined" @click="$el.closest('form').querySelector('#certFilePicker').click()">Choose file…</button>
+                    <span class="file-name-label" x-text="certForm.fileName || 'No file chosen'"></span>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Password <small>(leave blank if not encrypted)</small></span>
+                  <input type="password" x-model="certForm.password" autocomplete="new-password">
+                </label>
+              </div>
+            </template>
+          </div>
+        </template>
+        <template x-if="certForm.error">
+          <p class="inline-error" x-text="certForm.error"></p>
+        </template>
+        <div class="modal-actions">
+          <button class="btn-outlined" type="button" @click="closeModal('createCertificate')">Cancel</button>
+          <button class="btn-filled" type="submit" :disabled="certForm.loading">
+            <span x-show="!certForm.loading" x-text="certForm.mode === 'generate' ? 'Generate' : 'Import'"></span>
+            <span x-show="certForm.loading">Working…</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: View Certificate ── -->
+  <div class="modal-backdrop" x-show="modals.viewCertificate" @click.self="closeModal('viewCertificate')" style="display:none">
+    <div class="modal-card" @click.stop>
+      <div class="modal-header">
+        <h2>Certificate: <span x-text="certDetail.name"></span></h2>
+        <button class="btn-text" type="button" @click="closeModal('viewCertificate')">✕</button>
+      </div>
+      <div class="stack-lg">
+        <template x-if="certDetail.loading">
+          <div class="loading-state" style="min-height:80px"><div class="spinner"></div></div>
+        </template>
+        <template x-if="!certDetail.loading">
+          <div class="stack-lg">
+            <div class="detail-row">
+              <span class="detail-label">Version</span>
+              <span class="detail-value" x-text="truncate(certDetail.version, 12) || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Subject</span>
+              <span class="detail-value" x-text="certDetail.subject || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Issuer</span>
+              <span class="detail-value" x-text="certDetail.issuer || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Serial</span>
+              <span class="detail-value monospace" x-text="certDetail.serial || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Thumbprint</span>
+              <span class="detail-value monospace" x-text="certDetail.thumbprint || '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Valid From</span>
+              <span class="detail-value" x-text="certDetail.notBefore ? formatDate(certDetail.notBefore) : '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Valid To</span>
+              <span class="detail-value" :class="isExpired(certDetail.notAfter) ? 'expired-cell' : ''" x-text="certDetail.notAfter ? formatDate(certDetail.notAfter) : '—'"></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Created</span>
+              <span class="detail-value" x-text="formatDate(certDetail.created)"></span>
+            </div>
+            <template x-if="certDetail.pem">
+              <div class="field">
+                <span>PEM</span>
+                <div class="value-box"><pre class="value-pre" style="font-size:11px" x-text="certDetail.pem"></pre></div>
+              </div>
+            </template>
+            <template x-if="certDetail.error">
+              <p class="inline-error" x-text="certDetail.error"></p>
+            </template>
+            <div class="modal-actions">
+              <button class="btn-outlined" type="button" @click="copyCertPem()">Copy PEM</button>
+              <button class="btn-outlined" type="button" @click="downloadCertPem()">Download PEM</button>
+              <button class="btn-outlined" type="button" @click="closeModal('viewCertificate')">Close</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
   <script>
     function dashboardPage() {
       return {
@@ -180,6 +632,14 @@
         user: { username: '', role: '' },
         data: { secrets: [], keys: [], certificates: [], users: [] },
         newUser: { username: '', password: '', role: 'contributor' },
+        modals: { createSecret: false, viewSecret: false, createKey: false, viewKey: false, createCertificate: false, viewCertificate: false },
+        secretForm: { name: '', value: '', contentType: '', expiresAt: '', showValue: false, loading: false, error: '' },
+        secretDetail: { name: '', version: '', value: '', contentType: '', enabled: false, created: 0, updated: 0, notBefore: null, expires: null, revealed: false, loading: false, error: '' },
+        keyForm: { name: '', kty: 'RSA', keySize: 2048, crv: 'P-256', expiresAt: '', loading: false, error: '' },
+        keyDetail: { name: '', version: '', kty: '', crv: '', kid: '', keyOps: [], n: '', e: '', x: '', y: '', created: 0, updated: 0, notBefore: null, expires: null, loading: false, error: '' },
+        certForm: { mode: 'generate', format: 'pem', name: '', commonName: '', organization: '', country: '', state: '', locality: '', validityMonths: 12, certType: 'CA', issuerName: '', value: '', fileName: '', password: '', loading: false, error: '' },
+        certDetail: { name: '', version: '', subject: '', issuer: '', serial: '', thumbprint: '', notBefore: 0, notAfter: 0, pem: '', created: 0, updated: 0, expires: null, loading: false, error: '' },
+
         get isAdmin() {
           return this.user.role === 'admin';
         },
@@ -229,6 +689,205 @@
         async loadUsers() {
           this.data.users = await kvApi.get('/ui/api/users');
         },
+
+        // ── Secrets ──
+        openCreateSecret() {
+          this.secretForm = { name: '', value: '', contentType: '', expiresAt: '', showValue: false, loading: false, error: '' };
+          this.modals.createSecret = true;
+        },
+        async submitCreateSecret() {
+          this.secretForm.error = '';
+          this.secretForm.loading = true;
+          try {
+            const body = {
+              name: this.secretForm.name,
+              value: this.secretForm.value,
+              contentType: this.secretForm.contentType,
+              expires: this.secretForm.expiresAt ? Math.floor(new Date(this.secretForm.expiresAt).getTime() / 1000) : null
+            };
+            const item = await kvApi.post('/ui/api/secrets', body);
+            this.data.secrets = [...this.data.secrets.filter(s => s.name !== item.name), item];
+            this.closeModal('createSecret');
+            showToast(`Secret "${item.name}" created`);
+          } catch (error) {
+            this.secretForm.error = error.message;
+          } finally {
+            this.secretForm.loading = false;
+          }
+        },
+        async viewSecret(item) {
+          this.secretDetail = { name: item.name, version: '', value: '', contentType: item.contentType, enabled: item.enabled, created: 0, updated: 0, notBefore: null, expires: item.expires, revealed: false, loading: true, error: '' };
+          this.modals.viewSecret = true;
+          try {
+            const detail = await kvApi.get(`/ui/api/secrets/${encodeURIComponent(item.name)}`);
+            this.secretDetail = { ...detail, revealed: false, loading: false, error: '' };
+          } catch (error) {
+            this.secretDetail.loading = false;
+            this.secretDetail.error = error.message;
+          }
+        },
+        async deleteSecret(item) {
+          if (!confirm(`Delete secret "${item.name}"? This cannot be undone.`)) return;
+          try {
+            await kvApi.del(`/ui/api/secrets/${encodeURIComponent(item.name)}`);
+            this.data.secrets = this.data.secrets.filter(s => s.name !== item.name);
+            showToast(`Secret "${item.name}" deleted`);
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        },
+        async copyValue(value) {
+          try {
+            await navigator.clipboard.writeText(value);
+            showToast('Value copied');
+          } catch {
+            showToast('Unable to copy value', 'error');
+          }
+        },
+
+        // ── Keys ──
+        openCreateKey() {
+          this.keyForm = { name: '', kty: 'RSA', keySize: 2048, crv: 'P-256', expiresAt: '', loading: false, error: '' };
+          this.modals.createKey = true;
+        },
+        async submitCreateKey() {
+          this.keyForm.error = '';
+          this.keyForm.loading = true;
+          try {
+            const body = {
+              name: this.keyForm.name,
+              kty: this.keyForm.kty,
+              keySize: this.keyForm.kty === 'RSA' ? this.keyForm.keySize : 0,
+              crv: this.keyForm.kty === 'EC' ? this.keyForm.crv : '',
+              expires: this.keyForm.expiresAt ? Math.floor(new Date(this.keyForm.expiresAt).getTime() / 1000) : null
+            };
+            const item = await kvApi.post('/ui/api/keys', body);
+            this.data.keys = [...this.data.keys, item];
+            this.closeModal('createKey');
+            showToast(`Key "${item.name}" created`);
+          } catch (error) {
+            this.keyForm.error = error.message;
+          } finally {
+            this.keyForm.loading = false;
+          }
+        },
+        async deleteKey(item) {
+          if (!confirm(`Delete key "${item.name}"? This cannot be undone.`)) return;
+          try {
+            await kvApi.del(`/ui/api/keys/${encodeURIComponent(item.name)}`);
+            this.data.keys = this.data.keys.filter(k => k.name !== item.name);
+            showToast(`Key "${item.name}" deleted`);
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        },
+        async viewKey(item) {
+          this.keyDetail = { name: item.name, version: '', kty: item.kty, crv: item.crv, kid: item.kid, keyOps: [], n: '', e: '', x: '', y: '', created: 0, updated: 0, notBefore: null, expires: item.expires, loading: true, error: '' };
+          this.modals.viewKey = true;
+          try {
+            const detail = await kvApi.get(`/ui/api/keys/${encodeURIComponent(item.name)}`);
+            this.keyDetail = { ...detail, loading: false, error: '' };
+          } catch (error) {
+            this.keyDetail.loading = false;
+            this.keyDetail.error = error.message;
+          }
+        },
+        exportKeyAsPem() {
+          if (!this.keyDetail.publicKeyPem) return;
+          const blob = new Blob([this.keyDetail.publicKeyPem], { type: 'application/x-pem-file' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${this.keyDetail.name}-public.pem`;
+          a.click(); URL.revokeObjectURL(url);
+        },
+
+        // ── Certificates ──
+        async deleteCertificate(item) {
+          if (!confirm(`Delete certificate "${item.name}"? This cannot be undone.`)) return;
+          try {
+            await kvApi.del(`/ui/api/certificates/${encodeURIComponent(item.name)}`);
+            this.data.certificates = this.data.certificates.filter(c => c.name !== item.name);
+            showToast(`Certificate "${item.name}" deleted`);
+          } catch (error) {
+            showToast(error.message, 'error');
+          }
+        },
+        async viewCertificate(item) {
+          this.certDetail = { name: item.name, version: '', subject: '', issuer: '', serial: '', thumbprint: '', notBefore: 0, notAfter: 0, pem: '', created: 0, updated: 0, expires: item.expires, loading: true, error: '' };
+          this.modals.viewCertificate = true;
+          try {
+            const detail = await kvApi.get(`/ui/api/certificates/${encodeURIComponent(item.name)}`);
+            this.certDetail = { ...detail, loading: false, error: '' };
+          } catch (error) {
+            this.certDetail.loading = false;
+            this.certDetail.error = error.message;
+          }
+        },
+        openCreateCertificate(mode) {
+          this.certForm = { mode, format: 'pem', name: '', commonName: '', organization: '', country: '', state: '', locality: '', validityMonths: 12, certType: 'CA', issuerName: '', value: '', fileName: '', password: '', loading: false, error: '' };
+          this.modals.createCertificate = true;
+        },
+        loadCertFile(event) {
+          const file = event.target.files[0];
+          if (!file) return;
+          this.certForm.fileName = file.name;
+          const reader = new FileReader();
+          reader.onload = e => {
+            // e.target.result is "data:<mime>;base64,<data>"
+            this.certForm.value = e.target.result.split(',')[1];
+          };
+          reader.readAsDataURL(file);
+        },
+        async submitCreateCertificate() {
+          this.certForm.error = '';
+          this.certForm.loading = true;
+          try {
+            let item;
+            if (this.certForm.mode === 'generate') {
+              item = await kvApi.post('/ui/api/certificates/generate', {
+                name: this.certForm.name,
+                commonName: this.certForm.commonName,
+                organization: this.certForm.organization,
+                country: this.certForm.country,
+                state: this.certForm.state,
+                locality: this.certForm.locality,
+                validityMonths: Number(this.certForm.validityMonths) || 12,
+                certType: this.certForm.certType,
+                issuerName: this.certForm.issuerName,
+              });
+            } else {
+              item = await kvApi.post('/ui/api/certificates/import', {
+                name: this.certForm.name,
+                value: this.certForm.value,
+                password: this.certForm.password,
+              });
+            }
+            this.data.certificates = [...this.data.certificates.filter(c => c.name !== item.name), item];
+            this.closeModal('createCertificate');
+            showToast(`Certificate "${item.name}" ${this.certForm.mode === 'generate' ? 'generated' : 'imported'}`);
+          } catch (error) {
+            this.certForm.error = error.message;
+          } finally {
+            this.certForm.loading = false;
+          }
+        },
+        async copyCertPem() {
+          try {
+            await navigator.clipboard.writeText(this.certDetail.pem);
+            showToast('PEM copied');
+          } catch {
+            showToast('Unable to copy PEM', 'error');
+          }
+        },
+        downloadCertPem() {
+          const blob = new Blob([this.certDetail.pem], { type: 'application/x-pem-file' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${this.certDetail.name}.pem`;
+          a.click(); URL.revokeObjectURL(url);
+        },
+
+        // ── Users ──
         async createUser() {
           try {
             await kvApi.post('/ui/api/users', this.newUser);
@@ -240,9 +899,7 @@
           }
         },
         async deleteUser(user) {
-          if (!confirm(`Delete ${user.username}?`)) {
-            return;
-          }
+          if (!confirm(`Delete ${user.username}?`)) return;
           try {
             await kvApi.del(`/ui/api/users/${user.id}`);
             await this.loadUsers();
@@ -251,12 +908,21 @@
             showToast(error.message, 'error');
           }
         },
+
+        // ── Misc ──
         async logout() {
           try {
             await kvApi.post('/ui/api/logout', {});
           } finally {
             window.location.replace('/ui/login');
           }
+        },
+        closeModal(name) {
+          this.modals[name] = false;
+        },
+        isExpired(unixTs) {
+          if (!unixTs) return false;
+          return unixTs < Math.floor(Date.now() / 1000);
         },
         truncate,
         formatDate

@@ -1,4 +1,4 @@
-FROM golang:1.24 AS build
+FROM golang:1.26 AS build
 ARG VERSION=dev
 ARG COMMIT=none
 ARG DATE=unknown

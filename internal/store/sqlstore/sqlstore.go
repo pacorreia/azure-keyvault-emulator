@@ -1582,6 +1582,22 @@ func (s *SQLStore) UnwrapKey(name, version string, req model.EncryptRequest) (st
 
 // ===== CERTIFICATES =====
 
+// getIssuerMaterialSQL looks up the managed secret PEM for a named certificate to use as issuer.
+func (s *SQLStore) getIssuerMaterialSQL(issuerName string) (*x509.Certificate, *rsa.PrivateKey, error) {
+	rec, err := s.getSecretVersionRow(issuerName, "")
+	if err != nil {
+		return nil, nil, fmt.Errorf("issuer certificate %q not found: %w", issuerName, err)
+	}
+	cert, key, _, err := kvcrypto.ParseImportedCertificate(rec.Value, "")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse issuer certificate %q: %w", issuerName, err)
+	}
+	if key == nil {
+		return nil, nil, fmt.Errorf("issuer certificate %q has no private key and cannot sign", issuerName)
+	}
+	return cert, key, nil
+}
+
 func (s *SQLStore) insertCertRow(rec store.CertificateRecord, pemData []byte, ts int64) error {
 	cerB64 := base64.StdEncoding.EncodeToString(rec.Cer)
 	attrsJSON, err := marshalAttrs(rec.Attributes)
@@ -1664,7 +1680,24 @@ func (s *SQLStore) CreateCertificate(name string, req model.CreateCertificateReq
 	version := newVersion()
 	attrs := buildAttributes(req.Attributes, now, now)
 
-	priv, der, err := kvcrypto.GenerateSelfSignedCert(name, policy)
+	var certOpts kvcrypto.CertOptions
+	certType := "CA"
+	if policy.X509Props != nil {
+		if t, ok := policy.X509Props["cert_type"].(string); ok && t != "" {
+			certType = t
+		}
+		if issuerName, ok := policy.X509Props["issuer_name"].(string); ok && issuerName != "" {
+			issuerCert, issuerKey, err := s.getIssuerMaterialSQL(issuerName)
+			if err != nil {
+				return store.CertificateRecord{}, store.NewError(http.StatusBadRequest, "InvalidIssuer", err.Error())
+			}
+			certOpts.IssuerCert = issuerCert
+			certOpts.IssuerKey = issuerKey
+		}
+	}
+	certOpts.CertType = certType
+
+	priv, der, err := kvcrypto.GenerateCert(name, policy, certOpts)
 	if err != nil {
 		return store.CertificateRecord{}, store.NewError(http.StatusBadRequest, "InvalidOperation", err.Error())
 	}
@@ -1719,7 +1752,7 @@ func (s *SQLStore) ImportCertificate(name string, req model.ImportCertificateReq
 	if req.Value == "" {
 		return store.CertificateRecord{}, store.NewError(http.StatusBadRequest, "BadParameter", "Certificate value is required.")
 	}
-	cert, priv, pemValue, err := kvcrypto.ParseImportedCertificate(req.Value)
+	cert, priv, pemValue, err := kvcrypto.ParseImportedCertificate(req.Value, req.Password)
 	if err != nil {
 		return store.CertificateRecord{}, store.NewError(http.StatusBadRequest, "BadParameter", err.Error())
 	}

@@ -103,7 +103,7 @@ func TestParseImportedCertificate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cert, key, pemData, err := ParseImportedCertificate(tt.value)
+			cert, key, pemData, err := ParseImportedCertificate(tt.value, "")
 			if tt.wantError {
 				if err == nil {
 					t.Fatal("expected error")

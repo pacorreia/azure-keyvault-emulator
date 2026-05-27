@@ -367,7 +367,7 @@ func importedPEMValue(t *testing.T) string {
 		t.Fatal(err)
 	}
 	cert := base64.StdEncoding.EncodeToString(der)
-	parsed, key, pemData, err := kvcrypto.ParseImportedCertificate(cert)
+	parsed, key, pemData, err := kvcrypto.ParseImportedCertificate(cert, "")
 	if err != nil || parsed == nil || key != nil {
 		t.Fatalf("unexpected parse %v %v %v", parsed, key, err)
 	}
