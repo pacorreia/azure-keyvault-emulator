@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.3.0...v0.4.0) (2026-05-27)
+
+
+### Features
+
+* Add new features ([c473a92](https://github.com/pacorreia/azure-keyvault-emulator/commit/c473a921e2fcd31e274ec5aa268f8948d0fe8309))
+
 ## [0.3.0](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.2.1...v0.3.0) (2026-05-26)
 
 
