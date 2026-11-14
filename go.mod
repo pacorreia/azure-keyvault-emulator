@@ -1,6 +1,6 @@
 module github.com/pacorreia/azure-keyvault-emulator
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/lib/pq v1.12.3
