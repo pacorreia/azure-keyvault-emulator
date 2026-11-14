@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.4.1...v0.4.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* Merge pull request [#12](https://github.com/pacorreia/azure-keyvault-emulator/issues/12) from pacorreia/laughing-memory ([900990e](https://github.com/pacorreia/azure-keyvault-emulator/commit/900990e3993aeb0fd79b767da60aa81ebd605b34))
+
 ## [0.4.1](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.4.0...v0.4.1) (2026-11-14)
 
 
