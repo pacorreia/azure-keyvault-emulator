@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.1](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.4.0...v0.4.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* Merge pull request [#11](https://github.com/pacorreia/azure-keyvault-emulator/issues/11) from pacorreia/fix/aikido-security-update-packages-182361836-mxyc ([868efb6](https://github.com/pacorreia/azure-keyvault-emulator/commit/868efb6fb7bf07dc06c288fdd89798f204969c0e))
+* Merge pull request [#9](https://github.com/pacorreia/azure-keyvault-emulator/issues/9) from pacorreia/fix/aikido-security-update-packages-181940304-thfj ([dd0fd06](https://github.com/pacorreia/azure-keyvault-emulator/commit/dd0fd06a914600936f1d59276d2aaa65f02eedd8))
+* **security:** update dependencies ([1b6adcd](https://github.com/pacorreia/azure-keyvault-emulator/commit/1b6adcd2c6ac3fe659b828d47e2ff1ab87cc79d9))
+* **security:** update go from 1.25.7 to 1.26.11 ([7a7acaf](https://github.com/pacorreia/azure-keyvault-emulator/commit/7a7acafe116747a9e416931b54baa13c0d5fd57c))
+
 ## [0.4.0](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.3.0...v0.4.0) (2026-05-27)
 
 
