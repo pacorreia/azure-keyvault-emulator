@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.4.2...v0.4.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* Merge pull request [#14](https://github.com/pacorreia/azure-keyvault-emulator/issues/14) from pacorreia/fix/aikido-security-container-fix-182763935-qdvc ([6d42b8f](https://github.com/pacorreia/azure-keyvault-emulator/commit/6d42b8f3498e260dcc920f02568930f65cd06f4c))
+* **security:** container autofix for azure-keyvault-emulator ([b4a72cc](https://github.com/pacorreia/azure-keyvault-emulator/commit/b4a72cca60530141c430282f646ec63d25a54e18))
+
 ## [0.4.2](https://github.com/pacorreia/azure-keyvault-emulator/compare/v0.4.1...v0.4.2) (2026-11-14)
 
 
