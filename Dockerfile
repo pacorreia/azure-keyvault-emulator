@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE} -w -s" -o /out/azure-keyvault-emulator .
 
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
 WORKDIR /app
 COPY --from=build /out/azure-keyvault-emulator /usr/local/bin/azure-keyvault-emulator
 EXPOSE 8080 8443
